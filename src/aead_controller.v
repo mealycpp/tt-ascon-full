@@ -124,8 +124,6 @@ module aead_controller (
     reg [63:0]  key_hi;
     reg [63:0]  nonce_lo_tmp;
     reg         is_decrypt_r;
-    reg [63:0]  tag_lo_computed;
-    reg [63:0]  tag_hi_computed;
 
     // Block counters (set once at start)
     reg [11:0]  ad_blocks_left;
@@ -518,8 +516,6 @@ module aead_controller (
                 end
                 S_FINAL_WAIT: begin
                     if (perm_done) begin
-                        tag_lo_computed <= perm_state_out[255:192] ^ key_lo;
-                        tag_hi_computed <= perm_state_out[319:256] ^ key_hi;
                         aead_state      <= perm_state_out;
                         if (is_decrypt_r) state <= S_TAG_CMP_LO;
                         else              state <= S_TAG_EMIT_LO;
@@ -527,14 +523,14 @@ module aead_controller (
                 end
 
                 S_TAG_EMIT_LO: begin
-                    out_block      <= tag_lo_computed;
+                    out_block      <= perm_state_out[255:192] ^ key_lo;
                     out_valid      <= 1'b1;
                     out_last       <= 1'b0;
                     out_byte_count <= 4'd8;
                     state          <= S_TAG_EMIT_HI;
                 end
                 S_TAG_EMIT_HI: begin
-                    out_block      <= tag_hi_computed;
+                    out_block      <= perm_state_out[319:256] ^ key_hi;
                     out_valid      <= 1'b1;
                     out_last       <= 1'b1;
                     out_byte_count <= 4'd8;
@@ -544,7 +540,7 @@ module aead_controller (
                 S_TAG_CMP_LO: begin
                     in_word_ready <= 1'b1;
                     if (in_word_valid && in_word_ready) begin
-                        auth_ok       <= auth_ok & (in_word == tag_lo_computed);
+                        auth_ok       <= auth_ok & (in_word == (perm_state_out[255:192] ^ key_lo));
                         in_word_ready <= 1'b0;
                         state         <= S_TAG_CMP_HI;
                     end
@@ -552,7 +548,7 @@ module aead_controller (
                 S_TAG_CMP_HI: begin
                     in_word_ready <= 1'b1;
                     if (in_word_valid && in_word_ready) begin
-                        auth_ok       <= auth_ok & (in_word == tag_hi_computed);
+                        auth_ok       <= auth_ok & (in_word == (perm_state_out[319:256] ^ key_hi));
                         in_word_ready <= 1'b0;
                         state         <= S_FINISH;
                     end
