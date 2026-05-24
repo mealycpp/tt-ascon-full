@@ -109,7 +109,6 @@ module hash_controller (
             state           <= S_IDLE;
             out_remaining   <= 16'd0;
             last_word_seen  <= 1'b0;
-            last_word_bytes <= 4'd0;
             in_word_ready   <= 1'b0;
             out_valid       <= 1'b0;
             out_last        <= 1'b0;
@@ -139,8 +138,7 @@ module hash_controller (
                     if (start) begin
                         out_remaining   <= OUT_LEN;
                         last_word_seen  <= 1'b0;
-                        last_word_bytes <= 4'd0;
-                        busy            <= 1'b1;
+                                    busy            <= 1'b1;
                         state           <= S_INIT_KICK;
                     end
                 end
@@ -161,8 +159,7 @@ module hash_controller (
                                               perm_state_out[63:0] ^ pad_val(4'd0)};
                             state         <= S_MSG_ABSORB;
                             last_word_seen  <= 1'b1;
-                            last_word_bytes <= 4'd0;
-                        end else begin
+                                        end else begin
                             in_word_ready <= 1'b1;
                             state         <= S_MSG_PULL;
                         end
@@ -172,9 +169,7 @@ module hash_controller (
                 S_MSG_PULL: begin
                     in_word_ready <= 1'b1;
                     if (in_word_valid && in_word_ready) begin
-                        pending_word    <= in_word;
                         last_word_seen  <= in_word_last;
-                        last_word_bytes <= in_word_bytes;
                         in_word_ready   <= 1'b0;
                         // Build perm input for this word: full or partial+pad
                         if (in_word_last) begin

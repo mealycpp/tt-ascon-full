@@ -56,7 +56,6 @@ module ascon_permutation (
 
     reg [319:0] state_reg;
     reg [3:0]   round_idx;
-    reg [3:0]   target_rounds;
 
     wire [319:0] state_next;
     ascon_round u_round (
@@ -77,7 +76,6 @@ module ascon_permutation (
             state         <= S_IDLE;
             round_idx     <= 4'd0;       // constant for GF180 sync-cell mapping;
                                           // real value is loaded on `start`.
-            target_rounds <= 4'd0;
             busy          <= 1'b0;
             done          <= 1'b0;
         end else begin
@@ -88,8 +86,7 @@ module ascon_permutation (
                     if (start) begin
                         state_reg     <= state_in;
                         round_idx     <= 4'd12 - num_rounds;
-                        target_rounds <= num_rounds;
-                        busy          <= 1'b1;
+                            busy          <= 1'b1;
                         state         <= S_RUN;
                     end
                 end

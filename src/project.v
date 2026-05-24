@@ -81,6 +81,7 @@ module tt_um_mealycpp_ascon_full (
     wire [3:0]  sdmc_out_byte_count;
     wire        sdmc_out_valid;
     wire        sdmc_out_ready;
+    wire        sdmc_out_last_unused;
 
     wire [2:0]  rx_fifo_empty;
     wire [2:0]  rx_fifo_full;
@@ -248,7 +249,7 @@ module tt_um_mealycpp_ascon_full (
         .in_word_ready(sdmc_in_word_ready_w),
         .out_block(sdmc_out_block),
         .out_valid(sdmc_out_valid),
-        .out_last(),                       // unused at top level
+        .out_last(sdmc_out_last_unused),                       // unused at top level
         .out_byte_count(sdmc_out_byte_count),
         .auth_ok(mc_auth_ok_w),
         .busy(mc_busy_w),

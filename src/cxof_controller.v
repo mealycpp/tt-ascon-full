@@ -129,7 +129,6 @@ module cxof_controller (
     reg         is_chained_iteration;   // 0 on first iter, 1 on subsequent
     reg         cs_last_seen;
     reg         msg_last_seen;
-    reg [3:0]   captured_word_bytes;
 
     reg [63:0]  chain_fifo [0:3];
 
@@ -155,7 +154,6 @@ module cxof_controller (
             is_chained_iteration <= 1'b0;
             cs_last_seen         <= 1'b0;
             msg_last_seen        <= 1'b0;
-            captured_word_bytes  <= 4'd0;
             in_word_ready        <= 1'b0;
             out_valid            <= 1'b0;
             out_last             <= 1'b0;
@@ -240,8 +238,7 @@ module cxof_controller (
                     in_word_ready <= 1'b1;
                     if (in_word_valid && in_word_ready && in_word_is_cs) begin
                         cs_last_seen        <= in_word_last;
-                        captured_word_bytes <= in_word_bytes;
-                        in_word_ready       <= 1'b0;
+                            in_word_ready       <= 1'b0;
                         if (in_word_last) begin
                             perm_state_in <= {cxof_state[319:64],
                                               cxof_state[63:0]

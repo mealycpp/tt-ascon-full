@@ -193,8 +193,8 @@ module aead_controller (
                         auth_ok          <= 1'b1;
                         // Block counts
                         ad_blocks_left   <= (ad_total_bytes == 16'd0) ? 12'd0
-                                            : ((ad_total_bytes >> 4) + 12'd1);
-                        data_blocks_left <= (data_total_bytes >> 4) + 12'd1;
+                                            : ((ad_total_bytes[15:4]) + 12'd1);
+                        data_blocks_left <= data_total_bytes[15:4] + 12'd1;
                         ad_bytes_left    <= ad_total_bytes;
                         data_bytes_left  <= data_total_bytes;
                         ad_pad_done      <= 1'b0;
