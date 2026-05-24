@@ -75,6 +75,7 @@ module tt_um_mealycpp_ascon_full (
     wire [3:0]  pack_bytes_0, pack_bytes_1, pack_bytes_2;
     wire        pack_valid_0, pack_valid_1, pack_valid_2;
     wire        pack_ready_0, pack_ready_1, pack_ready_2;
+    wire [3:0]  pack_pending_1, pack_pending_2;
 
     wire [1:0]  tx_sel;
     wire [63:0] sdmc_out_block;
@@ -103,6 +104,8 @@ module tt_um_mealycpp_ascon_full (
         .pack_valid_1(pack_valid_1), .pack_ready_1(pack_ready_1),
         .pack_word_2(pack_word_2), .pack_bytes_2(pack_bytes_2),
         .pack_valid_2(pack_valid_2), .pack_ready_2(pack_ready_2),
+        .pack_pending_1(pack_pending_1),
+        .pack_pending_2(pack_pending_2),
         .tx_sel(tx_sel),
         .sdmc_out_block(sdmc_out_block),
         .sdmc_out_byte_count(sdmc_out_byte_count),

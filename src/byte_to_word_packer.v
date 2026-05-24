@@ -22,14 +22,17 @@ module byte_to_word_packer (
     output reg  [63:0] out_word,
     output reg  [3:0]  out_word_bytes,
     output reg         out_word_valid,
-    input  wire        out_word_ready
+    input  wire        out_word_ready,
+
+    output wire [3:0]  pending_bytes
 );
 
     reg [2:0]  byte_idx;
     reg [63:0] accumulator;
 
-    assign flush_ready  = !out_word_valid;
+    assign flush_ready   = !out_word_valid;
     assign in_byte_ready = !out_word_valid && !flush;
+    assign pending_bytes = {1'b0, byte_idx};
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

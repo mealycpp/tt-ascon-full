@@ -51,6 +51,9 @@ module uart_bridge #(
     output wire        pack_valid_2,
     input  wire        pack_ready_2,
 
+    output wire [3:0]  pack_pending_1,
+    output wire [3:0]  pack_pending_2,
+
     input  wire [1:0]  tx_sel,
 
     input  wire [63:0] sdmc_out_block,
@@ -145,7 +148,8 @@ module uart_bridge #(
         .out_word(pack_word_1),
         .out_word_bytes(pack_bytes_1),
         .out_word_valid(pack_valid_1),
-        .out_word_ready(pack_ready_1)
+        .out_word_ready(pack_ready_1),
+        .pending_bytes(pack_pending_1)
     );
 
     // ------------------------------------------------------------
@@ -174,7 +178,8 @@ module uart_bridge #(
         .out_word(pack_word_2),
         .out_word_bytes(pack_bytes_2),
         .out_word_valid(pack_valid_2),
-        .out_word_ready(pack_ready_2)
+        .out_word_ready(pack_ready_2),
+        .pending_bytes(pack_pending_2)
     );
 
     // ------------------------------------------------------------
