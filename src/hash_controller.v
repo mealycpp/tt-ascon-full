@@ -107,13 +107,10 @@ module hash_controller (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state           <= S_IDLE;
-            hash_state      <= 320'd0;
             out_remaining   <= 16'd0;
             last_word_seen  <= 1'b0;
             last_word_bytes <= 4'd0;
-            pending_word    <= 64'd0;
             in_word_ready   <= 1'b0;
-            out_block       <= 64'd0;
             out_valid       <= 1'b0;
             out_last        <= 1'b0;
             out_byte_count  <= 4'd0;
@@ -121,7 +118,6 @@ module hash_controller (
             done            <= 1'b0;
             perm_start      <= 1'b0;
             perm_rounds     <= 4'd12;
-            perm_state_in   <= 320'd0;
         end else if (reset_engine) begin
             state           <= S_IDLE;
             busy            <= 1'b0;
