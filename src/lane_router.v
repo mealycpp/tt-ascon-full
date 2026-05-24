@@ -169,11 +169,8 @@ module lane_router (
         end
     endfunction
 
-    // Latched mode-derived counts (set at start_pulse, used to load on phase switch)
-    reg [16:0] uart1_count_latched;
+    // Latched UART2 count, used when switching from UART1 phase to UART2 phase.
     reg [16:0] uart2_count_latched;
-    reg        has_uart1_latched;
-    reg [2:0]  mode_latched;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -181,10 +178,7 @@ module lane_router (
             bytes_left           <= 17'd0;
             phase_sel            <= 2'd0;
             router_busy          <= 1'b0;
-            uart1_count_latched  <= 17'd0;
             uart2_count_latched  <= 17'd0;
-            has_uart1_latched    <= 1'b0;
-            mode_latched         <= 3'd0;
         end else begin
             case (state)
                 S_IDLE: begin
@@ -193,10 +187,7 @@ module lane_router (
                     bytes_left  <= 17'd0;
                     if (start_pulse) begin
                         // Latch all derived counts
-                        uart1_count_latched <= uart1_byte_count(mode, ad_total_bytes, cs_bytes);
                         uart2_count_latched <= uart2_byte_count(mode, is_decrypt, data_total_bytes);
-                        has_uart1_latched   <= has_uart1_phase(mode);
-                        mode_latched        <= mode;
                         router_busy         <= 1'b1;
                         // Select first lane
                         if (has_uart1_phase(mode)) begin
