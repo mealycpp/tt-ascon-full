@@ -147,7 +147,6 @@ module cxof_controller (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state                <= S_IDLE;
-            cxof_state           <= 320'd0;
             out_remaining        <= 16'd0;
             passes_left          <= 16'd0;
             chain_fifo_wr_idx    <= 2'd0;
@@ -157,12 +156,7 @@ module cxof_controller (
             cs_last_seen         <= 1'b0;
             msg_last_seen        <= 1'b0;
             captured_word_bytes  <= 4'd0;
-            chain_fifo[0]        <= 64'd0;
-            chain_fifo[1]        <= 64'd0;
-            chain_fifo[2]        <= 64'd0;
-            chain_fifo[3]        <= 64'd0;
             in_word_ready        <= 1'b0;
-            out_block            <= 64'd0;
             out_valid            <= 1'b0;
             out_last             <= 1'b0;
             out_byte_count       <= 4'd0;
@@ -170,7 +164,6 @@ module cxof_controller (
             done                 <= 1'b0;
             perm_start           <= 1'b0;
             perm_rounds          <= 4'd12;
-            perm_state_in        <= 320'd0;
         end else if (reset_engine) begin
             state         <= S_IDLE;
             busy          <= 1'b0;
