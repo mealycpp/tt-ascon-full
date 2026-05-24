@@ -102,25 +102,9 @@ module protocol_parser (
         if (!rst_n) begin
             state            <= S_IDLE;
             in_byte_ready    <= 1'b0;
-            mode_sel         <= 3'd0;
-            is_decrypt       <= 1'b0;
-            chain_enable     <= 1'b0;
-            chain_debug      <= 1'b0;
-            ad_total_bytes   <= 16'd0;
-            data_total_bytes <= 16'd0;
-            out_length       <= 16'd0;
-            chain_count      <= 16'd0;
-            cs_total_bits    <= 16'd0;
             frame_valid      <= 1'b0;
             frame_error      <= 1'b0;
             start            <= 1'b0;
-            mode_stage       <= 3'd0;
-            flags_stage      <= 8'd0;
-            ad_stage         <= 16'd0;
-            data_stage       <= 16'd0;
-            out_stage        <= 16'd0;
-            cc_stage         <= 16'd0;
-            cs_stage         <= 16'd0;
         end else begin
             // Default deassertions (1-cycle pulses)
             frame_valid   <= 1'b0;
