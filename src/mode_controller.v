@@ -40,6 +40,11 @@ module mode_controller (
     input  wire [15:0]  chain_count,
     input  wire         chain_debug,
 
+    // AEAD-specific scalar metadata
+    input  wire         is_decrypt,
+    input  wire [15:0]  ad_total_bytes,
+    input  wire [15:0]  data_total_bytes,
+
     // Streaming input (64-bit, FIFO-friendly)
     input  wire [63:0]  in_word,
     input  wire [3:0]   in_word_bytes,
@@ -53,6 +58,9 @@ module mode_controller (
     output reg          out_valid,
     output reg          out_last,
     output reg  [3:0]   out_byte_count,
+
+    // AEAD auth result (valid on done in decrypt mode)
+    output reg          auth_ok,
 
     // Status
     output reg          busy,
@@ -93,19 +101,22 @@ module mode_controller (
     wire sel_hash = (active_mode == M_HASH256);
     wire sel_xof  = (active_mode == M_XOF128) || (active_mode == M_XOF_CHAIN);
     wire sel_cxof = (active_mode == M_CXOF128) || (active_mode == M_CXOF_CHAIN);
+    wire sel_aead = (active_mode == M_AEAD_ENC) || (active_mode == M_AEAD_DEC);
 
     // ---------------- Start routing ----------------
-    reg hash_start, xof_start, cxof_start;
+    reg hash_start, xof_start, cxof_start, aead_start;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             active_mode <= M_IDLE;
             hash_start  <= 1'b0;
             xof_start   <= 1'b0;
             cxof_start  <= 1'b0;
+            aead_start  <= 1'b0;
         end else begin
             hash_start <= 1'b0;
             xof_start  <= 1'b0;
             cxof_start <= 1'b0;
+            aead_start <= 1'b0;
             if (start && !busy) begin
                 active_mode <= mode_sel;
                 case (mode_sel)
@@ -114,6 +125,8 @@ module mode_controller (
                     M_XOF_CHAIN:  xof_start  <= 1'b1;
                     M_CXOF128,
                     M_CXOF_CHAIN: cxof_start <= 1'b1;
+                    M_AEAD_ENC,
+                    M_AEAD_DEC:   aead_start <= 1'b1;
                     default: ;
                 endcase
             end
@@ -124,6 +137,7 @@ module mode_controller (
     wire hash_in_valid = in_word_valid & sel_hash;
     wire xof_in_valid  = in_word_valid & sel_xof;
     wire cxof_in_valid = in_word_valid & sel_cxof;
+    wire aead_in_valid = in_word_valid & sel_aead;
 
     // ---------------- Sub-controllers ----------------
     // Hash256
@@ -219,6 +233,40 @@ module mode_controller (
         .perm_done(perm_done & sel_cxof)
     );
 
+    // AEAD-128
+    wire          aead_perm_start;
+    wire [3:0]    aead_perm_rounds;
+    wire [319:0]  aead_perm_state_in;
+    wire          aead_in_ready;
+    wire [63:0]   aead_out_block;
+    wire          aead_out_valid;
+    wire          aead_out_last;
+    wire [3:0]    aead_out_byte_count;
+    wire          aead_auth_ok;
+    wire          aead_busy;
+    wire          aead_done;
+
+    aead_controller u_aead (
+        .clk(clk), .rst_n(rst_n),
+        .start(aead_start), .reset_engine(reset_engine),
+        .is_decrypt(is_decrypt),
+        .ad_total_bytes(ad_total_bytes),
+        .data_total_bytes(data_total_bytes),
+        .in_word(in_word), .in_word_bytes(in_word_bytes),
+        .in_word_last(in_word_last), .in_phase(3'd0),
+        .in_word_valid(aead_in_valid),
+        .in_word_ready(aead_in_ready),
+        .out_block(aead_out_block), .out_valid(aead_out_valid),
+        .out_last(aead_out_last), .out_byte_count(aead_out_byte_count),
+        .auth_ok(aead_auth_ok),
+        .busy(aead_busy), .done(aead_done),
+        .perm_start(aead_perm_start), .perm_rounds(aead_perm_rounds),
+        .perm_state_in(aead_perm_state_in),
+        .perm_state_out(perm_state_out),
+        .perm_busy(perm_busy),
+        .perm_done(perm_done & sel_aead)
+    );
+
     // ---------------- Perm arbiter (320b mux -> registered destination) ----------------
     always @(*) begin
         case (active_mode)
@@ -239,6 +287,12 @@ module mode_controller (
                 perm_rounds   = cxof_perm_rounds;
                 perm_state_in = cxof_perm_state_in;
             end
+            M_AEAD_ENC,
+            M_AEAD_DEC: begin
+                perm_start    = aead_perm_start;
+                perm_rounds   = aead_perm_rounds;
+                perm_state_in = aead_perm_state_in;
+            end
             default: begin
                 perm_start    = 1'b0;
                 perm_rounds   = 4'd12;
@@ -255,6 +309,8 @@ module mode_controller (
             M_XOF_CHAIN:  in_word_ready = xof_in_ready;
             M_CXOF128,
             M_CXOF_CHAIN: in_word_ready = cxof_in_ready;
+            M_AEAD_ENC,
+            M_AEAD_DEC:   in_word_ready = aead_in_ready;
             default:      in_word_ready = 1'b0;
         endcase
     end
@@ -269,6 +325,7 @@ module mode_controller (
                 out_byte_count = hash_out_byte_count;
                 busy           = hash_busy;
                 done           = hash_done;
+                auth_ok        = 1'b0;
             end
             M_XOF128,
             M_XOF_CHAIN: begin
@@ -278,6 +335,7 @@ module mode_controller (
                 out_byte_count = xof_out_byte_count;
                 busy           = xof_busy;
                 done           = xof_done;
+                auth_ok        = 1'b0;
             end
             M_CXOF128,
             M_CXOF_CHAIN: begin
@@ -287,6 +345,17 @@ module mode_controller (
                 out_byte_count = cxof_out_byte_count;
                 busy           = cxof_busy;
                 done           = cxof_done;
+                auth_ok        = 1'b0;
+            end
+            M_AEAD_ENC,
+            M_AEAD_DEC: begin
+                out_block      = aead_out_block;
+                out_valid      = aead_out_valid;
+                out_last       = aead_out_last;
+                out_byte_count = aead_out_byte_count;
+                busy           = aead_busy;
+                done           = aead_done;
+                auth_ok        = aead_auth_ok;
             end
             default: begin
                 out_block      = 64'd0;
@@ -295,6 +364,7 @@ module mode_controller (
                 out_byte_count = 4'd0;
                 busy           = 1'b0;
                 done           = 1'b0;
+                auth_ok        = 1'b0;
             end
         endcase
     end

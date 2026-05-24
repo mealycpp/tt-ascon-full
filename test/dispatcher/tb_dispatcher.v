@@ -19,6 +19,12 @@ module tb_dispatcher ();
   reg [15:0] chain_count;
   reg        chain_debug;
 
+  // AEAD-specific
+  reg         is_decrypt;
+  reg [15:0]  ad_total_bytes;
+  reg [15:0]  data_total_bytes;
+  wire        auth_ok;
+
   reg  [63:0] in_word;
   reg  [3:0]  in_word_bytes;
   reg         in_word_last;
@@ -45,6 +51,10 @@ module tb_dispatcher ();
     .in_word_valid(in_word_valid), .in_word_ready(in_word_ready),
     .out_block(out_block), .out_valid(out_valid),
     .out_last(out_last), .out_byte_count(out_byte_count),
+    .is_decrypt(is_decrypt),
+    .ad_total_bytes(ad_total_bytes),
+    .data_total_bytes(data_total_bytes),
+    .auth_ok(auth_ok),
     .busy(busy), .done(done)
   );
 endmodule
