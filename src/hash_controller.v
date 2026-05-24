@@ -1,76 +1,59 @@
 /*
- * ASCON-Hash256 controller — streaming I/O, locked architecture.
+ * hash_controller.v -- ASCON-Hash256 streaming controller.
  *
- * Input:  64-bit word handshake (in_word_valid / in_word_ready)
- * Output: 64-bit word handshake (out_block / out_valid)
- * Metadata: msg_total_bytes (scalar, from UART0 command frame)
- *
- * No msg_data[255:0] buffer. No result_data[255:0] buffer.
- * Words consumed on handshake as they arrive from upstream RX FIFO.
- * Blocks emitted on handshake as they are squeezed into downstream TX FIFO.
- *
- * IV (verified): x0 = 0x0000_0801_00CC_0002
+ * Area surgery:
+ *   - No private 320-bit hash_state register.
+ *   - No registered 320-bit perm_state_in.
+ *   - The shared ascon_permutation state_reg is the working state.
+ *   - This controller is only a small sequencer plus one 64-bit word latch.
  */
 `default_nettype none
 
 module hash_controller (
     input  wire         clk,
     input  wire         rst_n,
+
     input  wire         start,
     input  wire         reset_engine,
 
-    // Scalar metadata
     input  wire [15:0]  msg_total_bytes,
 
-    // Streaming input (64-bit words from upstream RX FIFO/packer)
     input  wire [63:0]  in_word,
-    input  wire [3:0]   in_word_bytes,   // 1..8 valid bytes in this word
-    input  wire         in_word_last,    // last word of message
+    input  wire [3:0]   in_word_bytes,
+    input  wire         in_word_last,
     input  wire         in_word_valid,
     output reg          in_word_ready,
 
-    // Streaming output (64-bit blocks to downstream TX FIFO)
     output reg  [63:0]  out_block,
     output reg          out_valid,
     output reg          out_last,
     output reg  [3:0]   out_byte_count,
 
-    // Status
     output reg          busy,
     output reg          done,
 
-    // Shared permutation interface
     output reg          perm_start,
     output reg  [3:0]   perm_rounds,
-    output reg  [319:0] perm_state_in,
+    output wire [319:0] perm_state_in,
     input  wire [319:0] perm_state_out,
     input  wire         perm_busy,
     input  wire         perm_done
 );
 
+    localparam S_IDLE        = 4'd0;
+    localparam S_INIT_KICK   = 4'd1;
+    localparam S_INIT_WAIT   = 4'd2;
+    localparam S_MSG_PULL    = 4'd3;
+    localparam S_ABSORB_KICK = 4'd4;
+    localparam S_ABSORB_WAIT = 4'd5;
+    localparam S_SQ_OUT      = 4'd6;
+    localparam S_SQ_KICK     = 4'd7;
+    localparam S_SQ_WAIT     = 4'd8;
+    localparam S_DONE        = 4'd9;
+
     localparam [63:0] HASH256_IV = 64'h0000_0801_00CC_0002;
-    localparam [15:0] OUT_LEN    = 16'd32;
 
-    wire _unused = &{perm_busy, msg_total_bytes, 1'b0};
-
-    function [63:0] pad_val;
-        input [3:0] i;
-        begin
-            case (i[2:0])
-                3'd0: pad_val = 64'h0000_0000_0000_0001;
-                3'd1: pad_val = 64'h0000_0000_0000_0100;
-                3'd2: pad_val = 64'h0000_0000_0001_0000;
-                3'd3: pad_val = 64'h0000_0000_0100_0000;
-                3'd4: pad_val = 64'h0000_0001_0000_0000;
-                3'd5: pad_val = 64'h0000_0100_0000_0000;
-                3'd6: pad_val = 64'h0001_0000_0000_0000;
-                3'd7: pad_val = 64'h0100_0000_0000_0000;
-                default: pad_val = 64'h0;
-            endcase
-        end
-    endfunction
-
-    function [63:0] mask_n;
+function [63:0] mask_n;
         input [3:0] n;
         begin
             case (n[2:0])
@@ -87,44 +70,74 @@ module hash_controller (
         end
     endfunction
 
-    localparam S_IDLE       = 4'd0;
-    localparam S_INIT_KICK  = 4'd1;
-    localparam S_INIT_WAIT  = 4'd2;
-    localparam S_MSG_PULL   = 4'd3;   // wait for in_word_valid
-    localparam S_MSG_ABSORB = 4'd4;   // launch perm with absorbed word
-    localparam S_MSG_WAIT   = 4'd5;   // wait perm done
-    localparam S_SQ_EMIT    = 4'd6;
-    localparam S_SQ_PERM    = 4'd7;
-    localparam S_SQ_WAIT    = 4'd8;
+function [63:0] pad_val;
+        input [3:0] i;
+        begin
+            case (i[2:0])
+                3'd0: pad_val = 64'h0000_0000_0000_0001;
+                3'd1: pad_val = 64'h0000_0000_0000_0100;
+                3'd2: pad_val = 64'h0000_0000_0001_0000;
+                3'd3: pad_val = 64'h0000_0000_0100_0000;
+                3'd4: pad_val = 64'h0000_0001_0000_0000;
+                3'd5: pad_val = 64'h0000_0100_0000_0000;
+                3'd6: pad_val = 64'h0001_0000_0000_0000;
+                3'd7: pad_val = 64'h0100_0000_0000_0000;
+                default: pad_val = 64'h0;
+            endcase
+        end
+    endfunction
 
-    reg [3:0]   state;
-    reg [319:0] hash_state;
-    reg [15:0]  out_remaining;
-    reg         last_word_seen;       // captured from in_word_last when consumed
-    reg [3:0]   last_word_bytes;      // captured for pad_val
-    reg [63:0]  pending_word;         // captured input word for absorb
+    localparam PIN_INIT  = 2'd0;
+    localparam PIN_WORD  = 2'd1;
+    localparam PIN_STATE = 2'd2;
+
+    reg [3:0]  state;
+    reg [15:0] out_remaining;
+    reg        last_word_seen;
+
+    reg [1:0]  perm_in_sel;
+    reg [63:0] perm_word;
+    reg [3:0]  perm_bytes;
+    reg        perm_last;
+
+    wire [63:0] absorb_word =
+        perm_last ? ((perm_word & mask_n(perm_bytes)) ^ pad_val(perm_bytes))
+                  : perm_word;
+
+    assign perm_state_in =
+        (perm_in_sel == PIN_INIT)  ? {256'd0, HASH256_IV} :
+        (perm_in_sel == PIN_WORD)  ? {perm_state_out[319:64],
+                                      perm_state_out[63:0] ^ absorb_word} :
+        (perm_in_sel == PIN_STATE) ? perm_state_out :
+                                     320'd0;
+
+    wire _unused = &{perm_busy, 1'b0};
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state           <= S_IDLE;
-            out_remaining   <= 16'd0;
-            last_word_seen  <= 1'b0;
-            in_word_ready   <= 1'b0;
-            out_valid       <= 1'b0;
-            out_last        <= 1'b0;
-            out_byte_count  <= 4'd0;
-            busy            <= 1'b0;
-            done            <= 1'b0;
-            perm_start      <= 1'b0;
-            perm_rounds     <= 4'd12;
+            state          <= S_IDLE;
+            out_remaining  <= 16'd0;
+            last_word_seen <= 1'b0;
+            in_word_ready  <= 1'b0;
+            out_valid      <= 1'b0;
+            out_last       <= 1'b0;
+            out_byte_count <= 4'd0;
+            busy           <= 1'b0;
+            done           <= 1'b0;
+            perm_start     <= 1'b0;
+            perm_rounds    <= 4'd12;
+            perm_in_sel    <= PIN_INIT;
+            perm_word      <= 64'd0;
+            perm_bytes     <= 4'd0;
+            perm_last      <= 1'b0;
         end else if (reset_engine) begin
-            state           <= S_IDLE;
-            busy            <= 1'b0;
-            done            <= 1'b0;
-            out_valid       <= 1'b0;
-            out_last        <= 1'b0;
-            in_word_ready   <= 1'b0;
-            perm_start      <= 1'b0;
+            state          <= S_IDLE;
+            busy           <= 1'b0;
+            done           <= 1'b0;
+            out_valid      <= 1'b0;
+            out_last       <= 1'b0;
+            in_word_ready  <= 1'b0;
+            perm_start     <= 1'b0;
         end else begin
             perm_start    <= 1'b0;
             done          <= 1'b0;
@@ -136,32 +149,31 @@ module hash_controller (
                 S_IDLE: begin
                     busy <= 1'b0;
                     if (start) begin
-                        out_remaining   <= OUT_LEN;
-                        last_word_seen  <= 1'b0;
-                                    busy            <= 1'b1;
-                        state           <= S_INIT_KICK;
+                        busy           <= 1'b1;
+                        out_remaining  <= 16'd32;
+                        last_word_seen <= 1'b0;
+                        state          <= S_INIT_KICK;
                     end
                 end
 
                 S_INIT_KICK: begin
-                    perm_state_in <= {256'd0, HASH256_IV};
-                    perm_rounds   <= 4'd12;
-                    perm_start    <= 1'b1;
-                    state         <= S_INIT_WAIT;
+                    perm_in_sel <= PIN_INIT;
+                    perm_rounds <= 4'd12;
+                    perm_start  <= 1'b1;
+                    state       <= S_INIT_WAIT;
                 end
+
                 S_INIT_WAIT: begin
                     if (perm_done) begin
-                        hash_state    <= perm_state_out;
-                        // Special case: empty message — go straight to padded-empty absorb
                         if (msg_total_bytes == 16'd0) begin
-                            // Absorb just the pad byte 0x01
-                            perm_state_in <= {perm_state_out[319:64],
-                                              perm_state_out[63:0] ^ pad_val(4'd0)};
-                            state         <= S_MSG_ABSORB;
-                            last_word_seen  <= 1'b1;
-                                        end else begin
-                            in_word_ready <= 1'b1;
-                            state         <= S_MSG_PULL;
+                            perm_in_sel    <= PIN_WORD;
+                            perm_word      <= 64'd0;
+                            perm_bytes     <= 4'd0;
+                            perm_last      <= 1'b1;
+                            last_word_seen <= 1'b1;
+                            state          <= S_ABSORB_KICK;
+                        end else begin
+                            state <= S_MSG_PULL;
                         end
                     end
                 end
@@ -169,69 +181,71 @@ module hash_controller (
                 S_MSG_PULL: begin
                     in_word_ready <= 1'b1;
                     if (in_word_valid && in_word_ready) begin
-                        last_word_seen  <= in_word_last;
-                        in_word_ready   <= 1'b0;
-                        // Build perm input for this word: full or partial+pad
-                        if (in_word_last) begin
-                            perm_state_in <= {hash_state[319:64],
-                                              hash_state[63:0]
-                                              ^ (in_word & mask_n(in_word_bytes))
-                                              ^ pad_val(in_word_bytes)};
-                        end else begin
-                            perm_state_in <= {hash_state[319:64],
-                                              hash_state[63:0] ^ in_word};
-                        end
-                        state <= S_MSG_ABSORB;
+                        in_word_ready  <= 1'b0;
+                        perm_in_sel    <= PIN_WORD;
+                        perm_word      <= in_word;
+                        perm_bytes     <= in_word_bytes;
+                        perm_last      <= in_word_last;
+                        last_word_seen <= in_word_last;
+                        state          <= S_ABSORB_KICK;
                     end
                 end
 
-                S_MSG_ABSORB: begin
+                S_ABSORB_KICK: begin
                     perm_rounds <= 4'd12;
                     perm_start  <= 1'b1;
-                    state       <= S_MSG_WAIT;
+                    state       <= S_ABSORB_WAIT;
                 end
-                S_MSG_WAIT: begin
+
+                S_ABSORB_WAIT: begin
                     if (perm_done) begin
-                        hash_state <= perm_state_out;
                         if (last_word_seen) begin
-                            state <= S_SQ_EMIT;
+                            state <= S_SQ_OUT;
                         end else begin
-                            in_word_ready <= 1'b1;
-                            state         <= S_MSG_PULL;
+                            state <= S_MSG_PULL;
                         end
                     end
                 end
 
-                S_SQ_EMIT: begin
-                    out_block <= hash_state[63:0];
+                S_SQ_OUT: begin
+                    out_block <= perm_state_out[63:0];
                     out_valid <= 1'b1;
-                    if (out_remaining <= 16'd8) begin
-                        out_last       <= 1'b1;
-                        out_byte_count <= out_remaining[3:0];
-                        busy           <= 1'b0;
-                        done           <= 1'b1;
-                        state          <= S_IDLE;
-                    end else begin
+
+                    if (out_remaining > 16'd8) begin
                         out_byte_count <= 4'd8;
+                        out_last       <= 1'b0;
                         out_remaining  <= out_remaining - 16'd8;
-                        state          <= S_SQ_PERM;
+                        state          <= S_SQ_KICK;
+                    end else begin
+                        out_byte_count <= out_remaining[3:0];
+                        out_last       <= 1'b1;
+                        out_remaining  <= 16'd0;
+                        state          <= S_DONE;
                     end
                 end
 
-                S_SQ_PERM: begin
-                    perm_state_in <= hash_state;
-                    perm_rounds   <= 4'd12;
-                    perm_start    <= 1'b1;
-                    state         <= S_SQ_WAIT;
+                S_SQ_KICK: begin
+                    perm_in_sel <= PIN_STATE;
+                    perm_rounds <= 4'd12;
+                    perm_start  <= 1'b1;
+                    state       <= S_SQ_WAIT;
                 end
+
                 S_SQ_WAIT: begin
                     if (perm_done) begin
-                        hash_state <= perm_state_out;
-                        state      <= S_SQ_EMIT;
+                        state <= S_SQ_OUT;
                     end
                 end
 
-                default: state <= S_IDLE;
+                S_DONE: begin
+                    busy  <= 1'b0;
+                    done  <= 1'b1;
+                    state <= S_IDLE;
+                end
+
+                default: begin
+                    state <= S_IDLE;
+                end
             endcase
         end
     end
