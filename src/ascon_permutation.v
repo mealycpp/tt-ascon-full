@@ -27,7 +27,7 @@ module ascon_permutation (
     input  wire [3:0]  num_rounds,    // typically 12 for CXOF
     input  wire [319:0] state_in,
 
-    output reg  [319:0] state_out,
+    output wire [319:0] state_out,
     output reg          busy,
     output reg          done
 );
@@ -55,6 +55,8 @@ module ascon_permutation (
     endfunction
 
     reg [319:0] state_reg;
+
+    assign state_out = state_reg;
     reg [3:0]   round_idx;
 
     wire [319:0] state_next;
@@ -99,7 +101,6 @@ module ascon_permutation (
                     end
                 end
                 S_DONE: begin
-                    state_out <= state_reg;  // capture final state
                     done      <= 1'b1;
                     busy      <= 1'b0;
                     state     <= S_IDLE;
