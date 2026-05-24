@@ -118,6 +118,7 @@ module cxof_controller (
     localparam S_SQ_EMIT      = 5'd12;
     localparam S_SQ_PERM      = 5'd13;
     localparam S_SQ_WAIT      = 5'd14;
+    localparam S_WORD_PREP    = 5'd15;
 
     reg [4:0]   state;
     reg [15:0]  out_remaining;
@@ -143,6 +144,8 @@ module cxof_controller (
     reg [3:0]  perm_bytes;
     reg        perm_last;
     reg [1:0]  perm_chain_idx;
+    reg [63:0] absorb_word_r;
+    reg        prep_to_cs;
 
     wire [63:0] perm_absorb_word =
         (perm_in_sel == PIN_CHAIN) ? chain_fifo[perm_chain_idx] :
@@ -154,9 +157,9 @@ module cxof_controller (
         (perm_in_sel == PIN_CSBITS) ? {perm_state_out[319:64],
                                        perm_state_out[63:0] ^ {48'd0, cs_total_bits}} :
         (perm_in_sel == PIN_WORD)   ? {perm_state_out[319:64],
-                                       perm_state_out[63:0] ^ perm_absorb_word} :
+                                       perm_state_out[63:0] ^ absorb_word_r} :
         (perm_in_sel == PIN_CHAIN)  ? {perm_state_out[319:64],
-                                       perm_state_out[63:0] ^ perm_absorb_word} :
+                                       perm_state_out[63:0] ^ absorb_word_r} :
         (perm_in_sel == PIN_STATE)  ? perm_state_out :
                                       320'd0;
 
@@ -191,6 +194,8 @@ module cxof_controller (
             done                 <= 1'b0;
             perm_start           <= 1'b0;
             perm_rounds          <= 4'd12;
+            absorb_word_r        <= 64'd0;
+            prep_to_cs           <= 1'b0;
         end else if (reset_engine) begin
             state         <= S_IDLE;
             busy          <= 1'b0;
@@ -249,10 +254,9 @@ module cxof_controller (
                         // If CS is empty (cs_total_bits == 0), still need padded absorb
                         if (cs_total_bits == 16'd0) begin
                             // Absorb pad-only word for CS
-                            perm_in_sel <= PIN_WORD;
-                            perm_word   <= 64'd0;
-                            perm_bytes  <= 4'd0;
-                            perm_last   <= 1'b1;
+                            perm_in_sel    <= PIN_WORD;
+                            absorb_word_r  <= pad_val(4'd0);
+                            prep_to_cs     <= 1'b1;
                             cs_last_seen   <= 1'b1;
                             state          <= S_CS_ABSORB;
                         end else begin
@@ -278,9 +282,15 @@ module cxof_controller (
                             perm_bytes  <= in_word_bytes;
                             perm_last   <= 1'b0;
                         end
-                        state <= S_CS_ABSORB;
+                        prep_to_cs <= 1'b1;
+                        state      <= S_WORD_PREP;
                     end
                 end
+                S_WORD_PREP: begin
+                    absorb_word_r <= perm_absorb_word;
+                    state         <= prep_to_cs ? S_CS_ABSORB : S_MSG_ABSORB;
+                end
+
                 S_CS_ABSORB: begin
                     perm_rounds <= 4'd12;
                     perm_start  <= 1'b1;
@@ -296,12 +306,11 @@ module cxof_controller (
                                 chain_fifo_rd_idx <= 2'd0;
                                 state             <= S_CHAIN_FETCH;
                             end else if (msg_total_bytes == 16'd0) begin
-                                perm_in_sel <= PIN_WORD;
-                                perm_word   <= 64'd0;
-                                perm_bytes  <= 4'd0;
-                                perm_last   <= 1'b1;
-                                msg_last_seen <= 1'b1;
-                                state         <= S_MSG_ABSORB;
+                                perm_in_sel    <= PIN_WORD;
+                                absorb_word_r  <= pad_val(4'd0);
+                                prep_to_cs     <= 1'b0;
+                                msg_last_seen  <= 1'b1;
+                                state          <= S_MSG_ABSORB;
                             end else begin
                                 in_word_ready <= 1'b1;
                                 state         <= S_MSG_PULL;
@@ -329,7 +338,8 @@ module cxof_controller (
                             perm_bytes  <= in_word_bytes;
                             perm_last   <= 1'b0;
                         end
-                        state <= S_MSG_ABSORB;
+                        prep_to_cs <= 1'b0;
+                        state      <= S_WORD_PREP;
                     end
                 end
 
@@ -347,22 +357,19 @@ module cxof_controller (
                         // blocks then do an ADDITIONAL padded-empty absorb.
                         // So: this iteration absorbs the word as a FULL block
                         // (not last), then we need one more padded-empty absorb.
-                        perm_in_sel   <= PIN_CHAIN;
-                        perm_chain_idx <= chain_fifo_rd_idx;
-                        msg_last_seen <= 1'b0;  // we still need padded-empty absorb after
-                        // Mark that next absorb should be padded-empty
-                        chain_fifo_rd_idx <= 2'd0;  // sentinel: reset for next round
-                        // Use a flag — overload msg_last_seen sequencing:
-                        // After this absorb, go to one more padded absorb (S_MSG_FIN_PAD_KICK)
-                        // To keep FSM small, set state to S_MSG_ABSORB and after wait,
-                        // go to S_CHAIN_FINAL_PAD (added below).
-                        state <= S_MSG_ABSORB;  // sequencing handled in S_MSG_WAIT
+                        perm_in_sel       <= PIN_CHAIN;
+                        perm_chain_idx     <= chain_fifo_rd_idx;
+                        prep_to_cs         <= 1'b0;
+                        msg_last_seen      <= 1'b0;  // we still need padded-empty absorb after
+                        chain_fifo_rd_idx  <= 2'd0;  // sentinel: reset for next round
+                        state              <= S_WORD_PREP;
                     end else begin
-                        perm_in_sel   <= PIN_CHAIN;
-                        perm_chain_idx <= chain_fifo_rd_idx;
-                        chain_fifo_rd_idx <= chain_fifo_rd_idx + 2'd1;
-                        msg_last_seen     <= 1'b0;
-                        state             <= S_MSG_ABSORB;
+                        perm_in_sel       <= PIN_CHAIN;
+                        perm_chain_idx     <= chain_fifo_rd_idx;
+                        prep_to_cs         <= 1'b0;
+                        chain_fifo_rd_idx  <= chain_fifo_rd_idx + 2'd1;
+                        msg_last_seen      <= 1'b0;
+                        state              <= S_WORD_PREP;
                     end
                 end
 
@@ -381,12 +388,11 @@ module cxof_controller (
                             if (chain_fifo_rd_idx == 2'd0) begin
                                 // We just finished absorbing chain_fifo[3] (rd_idx reset to 0).
                                 // Now do the final padded-empty absorb.
-                                perm_in_sel <= PIN_WORD;
-                                perm_word   <= 64'd0;
-                                perm_bytes  <= 4'd0;
-                                perm_last   <= 1'b1;
-                                msg_last_seen <= 1'b1;
-                                state         <= S_MSG_ABSORB;
+                                perm_in_sel    <= PIN_WORD;
+                                absorb_word_r  <= pad_val(4'd0);
+                                prep_to_cs     <= 1'b0;
+                                msg_last_seen  <= 1'b1;
+                                state          <= S_MSG_ABSORB;
                             end else begin
                                 state <= S_CHAIN_FETCH;
                             end
