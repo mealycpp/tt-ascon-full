@@ -97,7 +97,6 @@ module xof_controller (
     localparam S_SQ_WAIT      = 4'd9;
 
     reg [3:0]   state;
-    reg [319:0] xof_state;
     reg [15:0]  out_remaining;
     reg [15:0]  passes_left;
     reg [1:0]   chain_fifo_wr_idx;
@@ -182,7 +181,6 @@ module xof_controller (
                 end
                 S_INIT_WAIT: begin
                     if (perm_done) begin
-                        xof_state <= perm_state_out;
                         if (is_chained_iteration) begin
                             // Chain mode: pull MSG from chain_fifo
                             chain_fifo_rd_idx <= 2'd0;
@@ -207,13 +205,13 @@ module xof_controller (
                         msg_last_seen <= in_word_last;
                         in_word_ready <= 1'b0;
                         if (in_word_last) begin
-                            perm_state_in <= {xof_state[319:64],
-                                              xof_state[63:0]
+                            perm_state_in <= {perm_state_out[319:64],
+                                              perm_state_out[63:0]
                                               ^ (in_word & mask_n(in_word_bytes))
                                               ^ pad_val(in_word_bytes)};
                         end else begin
-                            perm_state_in <= {xof_state[319:64],
-                                              xof_state[63:0] ^ in_word};
+                            perm_state_in <= {perm_state_out[319:64],
+                                              perm_state_out[63:0] ^ in_word};
                         end
                         state <= S_MSG_ABSORB;
                     end
@@ -224,14 +222,14 @@ module xof_controller (
                     if (chain_fifo_rd_idx == 2'd3) begin
                         // Absorb chain_fifo[3] as a full block; next state
                         // will be padded-empty absorb (same as CXOF chain).
-                        perm_state_in <= {xof_state[319:64],
-                                          xof_state[63:0] ^ chain_fifo[chain_fifo_rd_idx]};
+                        perm_state_in <= {perm_state_out[319:64],
+                                          perm_state_out[63:0] ^ chain_fifo[chain_fifo_rd_idx]};
                         msg_last_seen     <= 1'b0;
                         chain_fifo_rd_idx <= 2'd0;  // sentinel for "do padded-empty next"
                         state             <= S_MSG_ABSORB;
                     end else begin
-                        perm_state_in <= {xof_state[319:64],
-                                          xof_state[63:0] ^ chain_fifo[chain_fifo_rd_idx]};
+                        perm_state_in <= {perm_state_out[319:64],
+                                          perm_state_out[63:0] ^ chain_fifo[chain_fifo_rd_idx]};
                         chain_fifo_rd_idx <= chain_fifo_rd_idx + 2'd1;
                         msg_last_seen     <= 1'b0;
                         state             <= S_MSG_ABSORB;
@@ -245,7 +243,6 @@ module xof_controller (
                 end
                 S_MSG_WAIT: begin
                     if (perm_done) begin
-                        xof_state <= perm_state_out;
                         if (msg_last_seen) begin
                             chain_fifo_wr_idx <= 2'd0;
                             state             <= S_SQ_EMIT;
@@ -268,11 +265,11 @@ module xof_controller (
 
                 S_SQ_EMIT: begin
                     if (chain_enable) begin
-                        chain_fifo[chain_fifo_wr_idx] <= xof_state[63:0];
+                        chain_fifo[chain_fifo_wr_idx] <= perm_state_out[63:0];
                         chain_fifo_wr_idx             <= chain_fifo_wr_idx + 2'd1;
                     end
                     if (emit_external) begin
-                        out_block <= xof_state[63:0];
+                        out_block <= perm_state_out[63:0];
                         out_valid <= 1'b1;
                         if (out_remaining <= 16'd8) begin
                             out_last       <= 1'b1;
@@ -305,14 +302,13 @@ module xof_controller (
                 end
 
                 S_SQ_PERM: begin
-                    perm_state_in <= xof_state;
+                    perm_state_in <= perm_state_out;
                     perm_rounds   <= 4'd12;
                     perm_start    <= 1'b1;
                     state         <= S_SQ_WAIT;
                 end
                 S_SQ_WAIT: begin
                     if (perm_done) begin
-                        xof_state <= perm_state_out;
                         state     <= S_SQ_EMIT;
                     end
                 end
