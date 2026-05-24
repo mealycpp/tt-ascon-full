@@ -152,25 +152,16 @@ module aead_controller (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state            <= S_IDLE;
-            aead_state       <= 320'd0;
-            key_lo           <= 64'd0;
-            key_hi           <= 64'd0;
-            nonce_lo_tmp     <= 64'd0;
             is_decrypt_r     <= 1'b0;
-            tag_lo_computed  <= 64'd0;
-            tag_hi_computed  <= 64'd0;
             ad_blocks_left   <= 12'd0;
             data_blocks_left <= 12'd0;
             ad_bytes_left    <= 16'd0;
             data_bytes_left  <= 16'd0;
             ad_pad_done      <= 1'b0;
             data_pad_done    <= 1'b0;
-            w0_buf           <= 64'd0;
             w0_real          <= 4'd0;
-            w1_buf           <= 64'd0;
             w1_real          <= 4'd0;
             in_word_ready    <= 1'b0;
-            out_block        <= 64'd0;
             out_valid        <= 1'b0;
             out_last         <= 1'b0;
             out_byte_count   <= 4'd0;
@@ -179,7 +170,6 @@ module aead_controller (
             done             <= 1'b0;
             perm_start       <= 1'b0;
             perm_rounds      <= 4'd12;
-            perm_state_in    <= 320'd0;
         end else if (reset_engine) begin
             state         <= S_IDLE;
             busy          <= 1'b0;
