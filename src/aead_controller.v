@@ -455,7 +455,7 @@ module aead_controller (
                         out_block      <= aead_state[63:0] ^ w0_buf;
                         out_valid      <= 1'b1;
                         out_byte_count <= w0_real;
-                        // out_last set in W1 emit
+                        out_last       <= (data_blocks_left == 12'd1) && (w1_real == 4'd0);
                     end
                     state <= S_DATA_EMIT_W1;
                 end
@@ -466,13 +466,6 @@ module aead_controller (
                         out_valid      <= 1'b1;
                         out_byte_count <= w1_real;
                         out_last       <= (data_blocks_left == 12'd1);
-                    end else if (w0_real > 4'd0 && data_blocks_left == 12'd1) begin
-                        // W0 was the last real word — but emit happened last cycle,
-                        // so we need to retroactively mark it last. Simplest: do
-                        // nothing here; user should check out_last on each beat.
-                        // Better: re-emit W0 with out_last? Too messy.
-                        // Solution: skip out_last marking on W0 since we emit in
-                        // separate states. For tests, totals matter, not out_last.
                     end
 
                     // Build absorb XOR — applied either to perm_state_in (not last)
