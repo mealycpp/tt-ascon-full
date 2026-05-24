@@ -11,3 +11,11 @@ test/sim_build
 test/__pycache__/
 test/results.xml
 test/gate_level_netlist.v
+.venv/
+*.before_*
+*.packed_output_backup
+sim_build/
+results.xml
+*.fst
+*.vcd
+__pycache__/

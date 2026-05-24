@@ -77,7 +77,7 @@ module ascon_permutation (
             state         <= S_IDLE;
             state_reg     <= 320'd0;
             state_out     <= 320'd0;
-            round_idx     <= 4'd0;
+            round_idx     <= 4'd12 - num_rounds;
             target_rounds <= 4'd0;
             busy          <= 1'b0;
             done          <= 1'b0;
@@ -88,7 +88,7 @@ module ascon_permutation (
                     busy <= 1'b0;
                     if (start) begin
                         state_reg     <= state_in;
-                        round_idx     <= 4'd0;
+                        round_idx     <= 4'd12 - num_rounds;
                         target_rounds <= num_rounds;
                         busy          <= 1'b1;
                         state         <= S_RUN;
@@ -96,7 +96,7 @@ module ascon_permutation (
                 end
                 S_RUN: begin
                     state_reg <= state_next;
-                    if (round_idx + 4'd1 == target_rounds) begin
+                    if (round_idx == 4'd11) begin
                         state     <= S_DONE;
                     end else begin
                         round_idx <= round_idx + 4'd1;

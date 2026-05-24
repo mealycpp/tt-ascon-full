@@ -23,7 +23,6 @@ project:
     - "stream_register_file.v"
     - "protocol_parser.v"
     - "cxof_controller.v"
-    - "cxof_stream_controller.v"
     - "ascon_cxof_top.v"
 
 pinout:
