@@ -75,8 +75,6 @@ module ascon_permutation (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state         <= S_IDLE;
-            state_reg     <= 320'd0;
-            state_out     <= 320'd0;
             round_idx     <= 4'd0;       // constant for GF180 sync-cell mapping;
                                           // real value is loaded on `start`.
             target_rounds <= 4'd0;
