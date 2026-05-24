@@ -86,10 +86,10 @@ module ascon_permutation (
                 S_IDLE: begin
                     busy <= 1'b0;
                     if (start) begin
-                        state_reg     <= state_in;
-                        round_idx     <= 4'd12 - num_rounds;
-                            busy          <= 1'b1;
-                        state         <= S_RUN;
+                        state_reg <= state_in;
+                        round_idx <= 4'd12 - num_rounds;
+                        busy      <= 1'b1;
+                        state     <= S_RUN;
                     end
                 end
                 S_RUN: begin
