@@ -18,9 +18,11 @@ async def reset(dut):
     dut.uart0_rx.value = 1
     dut.uart1_rx.value = 1
     dut.uart2_rx.value = 1
-    dut.phase_sel.value = 0
     dut.flush.value = 0
-    dut.sdmc_in_word_ready.value = 0
+    dut.pack_ready_0.value = 0
+    dut.pack_ready_1.value = 0
+    dut.pack_ready_2.value = 0
+    dut.uart0_byte_ready.value = 0
     dut.tx_sel.value = 0
     dut.sdmc_out_block.value = 0
     dut.sdmc_out_byte_count.value = 0
@@ -82,22 +84,19 @@ async def test_rx_uart0_to_word(dut):
     """Send 8 bytes via UART0 RX, expect 1 word on sdmc_in_word."""
     cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
     await reset(dut)
-    dut.phase_sel.value = 0
-    dut.sdmc_in_word_ready.value = 1
+    dut.pack_ready_0.value = 1
 
     bytes_in = [0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe]
-    # Send bytes in background
     cocotb.start_soon(uart_send_bytes(dut, 0, bytes_in))
 
-    # Wait for word valid
     for _ in range(8000):
         await RisingEdge(dut.clk)
-        if int(dut.sdmc_in_word_valid.value) == 1:
+        if int(dut.pack_valid_0.value) == 1:
             break
     else:
         raise RuntimeError("No word emitted within timeout")
-    word = int(dut.sdmc_in_word.value)
-    nbytes = int(dut.sdmc_in_word_bytes.value)
+    word = int(dut.pack_word_0.value)
+    nbytes = int(dut.pack_bytes_0.value)
     expected = sum(b << (8*i) for i, b in enumerate(bytes_in))
     assert word == expected, f"word=0x{word:016x} expected=0x{expected:016x}"
     assert nbytes == 8
@@ -110,17 +109,19 @@ async def test_rx_each_channel(dut):
     cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
     for ch in range(3):
         await reset(dut)
-        dut.phase_sel.value = ch
-        dut.sdmc_in_word_ready.value = 1
+        pack_ready = getattr(dut, f"pack_ready_{ch}")
+        pack_valid = getattr(dut, f"pack_valid_{ch}")
+        pack_word  = getattr(dut, f"pack_word_{ch}")
+        pack_ready.value = 1
         bytes_in = [0x20 + i for i in range(8)]
         cocotb.start_soon(uart_send_bytes(dut, ch, bytes_in))
         for _ in range(8000):
             await RisingEdge(dut.clk)
-            if int(dut.sdmc_in_word_valid.value) == 1:
+            if int(pack_valid.value) == 1:
                 break
         else:
             raise RuntimeError(f"channel {ch}: no word emitted")
-        word = int(dut.sdmc_in_word.value)
+        word = int(pack_word.value)
         expected = sum(b << (8*i) for i, b in enumerate(bytes_in))
         assert word == expected, f"ch{ch}: word=0x{word:016x} expected=0x{expected:016x}"
         dut._log.info(f"PASS rx_each_channel ch{ch}")
@@ -188,19 +189,22 @@ async def test_rx_16_bytes(dut):
     """Send 16 bytes via UART0 RX, expect 2 consecutive words."""
     cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
     await reset(dut)
-    dut.phase_sel.value = 0
-    dut.sdmc_in_word_ready.value = 1
+    dut.pack_ready_0.value = 1
 
     bytes_in = [0x10 + i for i in range(16)]
     cocotb.start_soon(uart_send_bytes(dut, 0, bytes_in))
 
     words = []
+    last_valid = 0
     for _ in range(20000):
         await RisingEdge(dut.clk)
-        if int(dut.sdmc_in_word_valid.value) == 1:
-            words.append(int(dut.sdmc_in_word.value))
+        v = int(dut.pack_valid_0.value)
+        # Capture word only on rising edge of valid (each accepted handshake)
+        if v == 1 and last_valid == 0:
+            words.append(int(dut.pack_word_0.value))
             if len(words) == 2:
                 break
+        last_valid = v
     assert len(words) == 2, f"expected 2 words, got {len(words)}"
     exp0 = sum(bytes_in[i] << (8*i) for i in range(8))
     exp1 = sum(bytes_in[i+8] << (8*i) for i in range(8))
@@ -213,8 +217,7 @@ async def test_rx_partial_with_flush(dut):
     """Send 3 bytes, then flush, expect 1 partial word with byte_count=3."""
     cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
     await reset(dut)
-    dut.phase_sel.value = 0
-    dut.sdmc_in_word_ready.value = 1
+    dut.pack_ready_0.value = 1
 
     bytes_in = [0xa1, 0xb2, 0xc3]
     # Send bytes (3 bytes * ~160 cycles UART time each) and WAIT for completion
@@ -235,12 +238,12 @@ async def test_rx_partial_with_flush(dut):
     dut.flush.value = 0b001
     for _ in range(200):
         await RisingEdge(dut.clk)
-        if (int(dut.flush_ready.value) & 0x1) == 1 and int(dut.sdmc_in_word_valid.value) == 1:
+        if (int(dut.flush_ready.value) & 0x1) == 1 and int(dut.pack_valid_0.value) == 1:
             break
     else:
         raise RuntimeError("flush_ready + valid never observed")
-    word = int(dut.sdmc_in_word.value)
-    nbytes = int(dut.sdmc_in_word_bytes.value)
+    word = int(dut.pack_word_0.value)
+    nbytes = int(dut.pack_bytes_0.value)
     dut.flush.value = 0
     expected = sum(bytes_in[i] << (8*i) for i in range(3))
     assert nbytes == 3, f"expected nbytes=3, got {nbytes}"
@@ -254,33 +257,29 @@ async def test_word_output_backpressure(dut):
     holds, data stable; release and verify correct value."""
     cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start())
     await reset(dut)
-    dut.phase_sel.value = 0
-    dut.sdmc_in_word_ready.value = 0  # backpressure active
+    dut.pack_ready_0.value = 0  # backpressure active
 
     bytes_in = [0x70 + i for i in range(8)]
     cocotb.start_soon(uart_send_bytes(dut, 0, bytes_in))
 
-    # Wait for word_valid
     for _ in range(8000):
         await RisingEdge(dut.clk)
-        if int(dut.sdmc_in_word_valid.value) == 1:
+        if int(dut.pack_valid_0.value) == 1:
             break
     else:
         raise RuntimeError("word never valid")
-    held = int(dut.sdmc_in_word.value)
-    held_bytes = int(dut.sdmc_in_word_bytes.value)
-    # Hold backpressure for 50 cycles
+    held = int(dut.pack_word_0.value)
+    held_bytes = int(dut.pack_bytes_0.value)
     for _ in range(50):
         await RisingEdge(dut.clk)
-        assert int(dut.sdmc_in_word_valid.value) == 1, "valid dropped under backpressure"
-        assert int(dut.sdmc_in_word.value) == held, "data changed under backpressure"
-        assert int(dut.sdmc_in_word_bytes.value) == held_bytes, "bytes changed under backpressure"
-    # Release
-    dut.sdmc_in_word_ready.value = 1
+        assert int(dut.pack_valid_0.value) == 1, "valid dropped under backpressure"
+        assert int(dut.pack_word_0.value) == held, "data changed under backpressure"
+        assert int(dut.pack_bytes_0.value) == held_bytes, "bytes changed under backpressure"
+    dut.pack_ready_0.value = 1
     await RisingEdge(dut.clk)
-    dut.sdmc_in_word_ready.value = 0
+    dut.pack_ready_0.value = 0
     await RisingEdge(dut.clk)
-    assert int(dut.sdmc_in_word_valid.value) == 0, "valid should drop after consume"
+    assert int(dut.pack_valid_0.value) == 0, "valid should drop after consume"
     expected = sum(bytes_in[i] << (8*i) for i in range(8))
     assert held == expected, f"held=0x{held:016x} expected=0x{expected:016x}"
     assert held_bytes == 8

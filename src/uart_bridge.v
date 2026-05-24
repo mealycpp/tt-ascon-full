@@ -2,22 +2,27 @@
  * uart_bridge.v — Phase 2 of UART<->SDMC bridge.
  *
  * Connects three physical UART RX channels and three physical UART TX
- * channels to a single 64-bit streaming interface intended for
- * mode_controller. No byte-level scheduling: each RX lane is independent
- * with its own byte FIFO + packer. A single word-level 3:1 mux selects
- * which lane drives the SDMC input.
+ * channels to the bridge layer. Each RX lane is independent with its own
+ * byte FIFO + packer. The 3 packer outputs are exposed separately;
+ * lane_router (downstream) owns the 3:1 word mux and lane scheduling.
  *
  * Pin lineage (locked TT pinout):
  *   UART0 = control / status
  *   UART1 = AD / customization / status
  *   UART2 = data / result stream
  *
- * Driving controls (from protocol_parser in Phase 3, from testbench now):
- *   - phase_sel[1:0]: which RX lane (0/1/2) feeds mode_controller this turn
- *   - tx_sel[1:0]:    which TX lane consumes mode_controller output
- *   - flush[2:0]:     per-lane packer flush (caller holds until flush_ready)
+ * Module ownership (locked):
+ *   - uart_bridge.v:  RX UART -> FIFO -> packer (3 lanes, exposed),
+ *                     unpacker -> TX FIFO -> UART TX (tx_sel demux).
+ *   - lane_router.v:  3:1 RX word mux + lane scheduling (separate module).
+ *   - mode_controller.v: unchanged.
  *
- * SDMC crypto core untouched. This module is pure wiring + small muxes.
+ * Driving controls:
+ *   - flush[2:0]:     per-lane packer flush (caller holds until flush_ready)
+ *   - pack_ready_N:   per-lane consumer ready (from lane_router)
+ *   - tx_sel[1:0]:    which TX lane consumes mode_controller output
+ *
+ * SDMC crypto core untouched.
  */
 `default_nettype none
 
@@ -41,18 +46,34 @@ module uart_bridge #(
     output wire        uart1_tx,
     output wire        uart2_tx,
 
-    // Phase select for word-level 3:1 RX mux
-    input  wire [1:0]  phase_sel,         // 0/1/2; 3 = none
-
     // Per-lane flush handshake (3 packers)
     input  wire [2:0]  flush,
     output wire [2:0]  flush_ready,
 
-    // 64-bit streaming output to mode_controller (selected RX lane)
-    output wire [63:0] sdmc_in_word,
-    output wire [3:0]  sdmc_in_word_bytes,
-    output wire        sdmc_in_word_valid,
-    input  wire        sdmc_in_word_ready,
+    // UART0 byte tap (parallel byte stream for protocol_parser).
+    // Bridge does NOT route UART0 to its own RX FIFO/packer because
+    // UART0 = control frame only, never crypto input. Parser consumes
+    // these bytes directly via standard byte handshake.
+    output wire [7:0]  uart0_byte,
+    output wire        uart0_byte_valid,
+    input  wire        uart0_byte_ready,
+
+    // 3 packed RX word streams (one per UART lane).
+    // lane_router downstream picks which one feeds SDMC.
+    output wire [63:0] pack_word_0,
+    output wire [3:0]  pack_bytes_0,
+    output wire        pack_valid_0,
+    input  wire        pack_ready_0,
+
+    output wire [63:0] pack_word_1,
+    output wire [3:0]  pack_bytes_1,
+    output wire        pack_valid_1,
+    input  wire        pack_ready_1,
+
+    output wire [63:0] pack_word_2,
+    output wire [3:0]  pack_bytes_2,
+    output wire        pack_valid_2,
+    input  wire        pack_ready_2,
 
     // TX select: which UART lane consumes SDMC output
     input  wire [1:0]  tx_sel,            // 0/1/2
@@ -105,6 +126,22 @@ module uart_bridge #(
         .rd_data(fifo_rd_data[0]), .empty(fifo_empty_w[0]),
         .count(fifo_count[0])
     );
+
+    // ---- UART0 parser-side byte tap ----
+    // Parallel byte FIFO fed by every UART0 RX byte.
+    // Output ports use FWFT: byte presented when !empty, advance on
+    // (valid && ready).
+    wire u0_tap_empty;
+    wire u0_tap_full_unused;
+    wire [FIFO_AW:0] u0_tap_count_unused;
+    byte_fifo #(.DEPTH(FIFO_DEPTH), .AW(FIFO_AW)) u_rx0_parser_fifo (
+        .clk(clk), .rst_n(rst_n),
+        .wr_en(rx_byte_valid[0]), .wr_data(rx_byte[0]), .full(u0_tap_full_unused),
+        .rd_en(uart0_byte_ready && !u0_tap_empty),
+        .rd_data(uart0_byte), .empty(u0_tap_empty),
+        .count(u0_tap_count_unused)
+    );
+    assign uart0_byte_valid = !u0_tap_empty;
     byte_to_word_packer u_pack0 (
         .clk(clk), .rst_n(rst_n),
         .in_byte(fifo_rd_data[0]),
@@ -113,7 +150,7 @@ module uart_bridge #(
         .flush(flush[0]), .flush_ready(flush_ready[0]),
         .out_word(pack_word[0]), .out_word_bytes(pack_bytes[0]),
         .out_word_valid(pack_valid[0]),
-        .out_word_ready((phase_sel == 2'd0) && sdmc_in_word_ready)
+        .out_word_ready(pack_ready_0)
     );
 
     // ---- UART1 RX ----
@@ -138,7 +175,7 @@ module uart_bridge #(
         .flush(flush[1]), .flush_ready(flush_ready[1]),
         .out_word(pack_word[1]), .out_word_bytes(pack_bytes[1]),
         .out_word_valid(pack_valid[1]),
-        .out_word_ready((phase_sel == 2'd1) && sdmc_in_word_ready)
+        .out_word_ready(pack_ready_1)
     );
 
     // ---- UART2 RX ----
@@ -163,24 +200,21 @@ module uart_bridge #(
         .flush(flush[2]), .flush_ready(flush_ready[2]),
         .out_word(pack_word[2]), .out_word_bytes(pack_bytes[2]),
         .out_word_valid(pack_valid[2]),
-        .out_word_ready((phase_sel == 2'd2) && sdmc_in_word_ready)
+        .out_word_ready(pack_ready_2)
     );
 
     // ============================================================
-    // WORD-LEVEL 3:1 MUX INTO SDMC
+    // EXPOSE PACKED RX STREAMS (lane_router does the 3:1 mux)
     // ============================================================
-    assign sdmc_in_word       = (phase_sel == 2'd0) ? pack_word[0]
-                              : (phase_sel == 2'd1) ? pack_word[1]
-                              : (phase_sel == 2'd2) ? pack_word[2]
-                              : 64'd0;
-    assign sdmc_in_word_bytes = (phase_sel == 2'd0) ? pack_bytes[0]
-                              : (phase_sel == 2'd1) ? pack_bytes[1]
-                              : (phase_sel == 2'd2) ? pack_bytes[2]
-                              : 4'd0;
-    assign sdmc_in_word_valid = (phase_sel == 2'd0) ? pack_valid[0]
-                              : (phase_sel == 2'd1) ? pack_valid[1]
-                              : (phase_sel == 2'd2) ? pack_valid[2]
-                              : 1'b0;
+    assign pack_word_0  = pack_word[0];
+    assign pack_bytes_0 = pack_bytes[0];
+    assign pack_valid_0 = pack_valid[0];
+    assign pack_word_1  = pack_word[1];
+    assign pack_bytes_1 = pack_bytes[1];
+    assign pack_valid_1 = pack_valid[1];
+    assign pack_word_2  = pack_word[2];
+    assign pack_bytes_2 = pack_bytes[2];
+    assign pack_valid_2 = pack_valid[2];
 
     // ============================================================
     // TX SIDE: unpacker -> selected TX FIFO -> uart_tx

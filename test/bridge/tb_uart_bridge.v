@@ -10,13 +10,17 @@ module tb_uart_bridge ();
   reg [15:0] baud_div;
   reg uart0_rx, uart1_rx, uart2_rx;
   wire uart0_tx, uart1_tx, uart2_tx;
-  reg [1:0] phase_sel;
   reg [2:0] flush;
   wire [2:0] flush_ready;
-  wire [63:0] sdmc_in_word;
-  wire [3:0]  sdmc_in_word_bytes;
-  wire        sdmc_in_word_valid;
-  reg         sdmc_in_word_ready;
+  // UART0 byte tap (parser-side parallel stream); not exercised by these tests
+  wire [7:0] uart0_byte;
+  wire       uart0_byte_valid;
+  reg        uart0_byte_ready;
+  // 3 lane RX streams (lane_router would do the mux; tests pick a lane directly)
+  wire [63:0] pack_word_0, pack_word_1, pack_word_2;
+  wire [3:0]  pack_bytes_0, pack_bytes_1, pack_bytes_2;
+  wire        pack_valid_0, pack_valid_1, pack_valid_2;
+  reg         pack_ready_0, pack_ready_1, pack_ready_2;
   reg [1:0]   tx_sel;
   reg [63:0]  sdmc_out_block;
   reg [3:0]   sdmc_out_byte_count;
@@ -30,11 +34,16 @@ module tb_uart_bridge ();
     .baud_div(baud_div),
     .uart0_rx(uart0_rx), .uart1_rx(uart1_rx), .uart2_rx(uart2_rx),
     .uart0_tx(uart0_tx), .uart1_tx(uart1_tx), .uart2_tx(uart2_tx),
-    .phase_sel(phase_sel),
+    .uart0_byte(uart0_byte),
+    .uart0_byte_valid(uart0_byte_valid),
+    .uart0_byte_ready(uart0_byte_ready),
     .flush(flush), .flush_ready(flush_ready),
-    .sdmc_in_word(sdmc_in_word), .sdmc_in_word_bytes(sdmc_in_word_bytes),
-    .sdmc_in_word_valid(sdmc_in_word_valid),
-    .sdmc_in_word_ready(sdmc_in_word_ready),
+    .pack_word_0(pack_word_0), .pack_bytes_0(pack_bytes_0),
+    .pack_valid_0(pack_valid_0), .pack_ready_0(pack_ready_0),
+    .pack_word_1(pack_word_1), .pack_bytes_1(pack_bytes_1),
+    .pack_valid_1(pack_valid_1), .pack_ready_1(pack_ready_1),
+    .pack_word_2(pack_word_2), .pack_bytes_2(pack_bytes_2),
+    .pack_valid_2(pack_valid_2), .pack_ready_2(pack_ready_2),
     .tx_sel(tx_sel),
     .sdmc_out_block(sdmc_out_block),
     .sdmc_out_byte_count(sdmc_out_byte_count),
