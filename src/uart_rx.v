@@ -71,8 +71,6 @@ module uart_rx (
             state      <= S_IDLE;
             os_counter <= 4'd0;
             bit_idx    <= 4'd0;
-            shift_reg  <= 8'd0;
-            byte_out   <= 8'd0;
             byte_valid <= 1'b0;
             rx_active  <= 1'b0;
         end else begin
