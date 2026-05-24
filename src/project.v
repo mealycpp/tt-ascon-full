@@ -87,7 +87,7 @@ module tt_um_mealycpp_ascon_full (
     wire [2:0]  tx_fifo_empty;
     wire [2:0]  tx_fifo_full;
 
-    uart_bridge #(.FIFO_DEPTH(16), .FIFO_AW(4)) u_bridge (
+    uart_bridge #(.FIFO_DEPTH(8), .FIFO_AW(3)) u_bridge (
         .clk(clk), .rst_n(rst_n),
         .baud_div(baud_div),
         .uart0_rx(uart0_rx), .uart1_rx(uart1_rx), .uart2_rx(uart2_rx),
