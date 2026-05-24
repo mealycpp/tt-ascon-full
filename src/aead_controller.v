@@ -171,12 +171,6 @@ module aead_controller (
                                      320'd0;
 
 
-    // Helper: how many bytes left in the relevant phase
-    wire [15:0] bytes_left = (state == S_AD_W0_GET || state == S_AD_W1_GET)
-                             ? ad_bytes_left : data_bytes_left;
-    wire pad_done_now = (state == S_AD_W0_GET || state == S_AD_W1_GET)
-                        ? ad_pad_done : data_pad_done;
-
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state            <= S_IDLE;
