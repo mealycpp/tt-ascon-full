@@ -120,7 +120,6 @@ module cxof_controller (
     localparam S_SQ_WAIT      = 5'd14;
 
     reg [4:0]   state;
-    reg [319:0] cxof_state;
     reg [15:0]  out_remaining;
     reg [15:0]  passes_left;
     reg [1:0]   chain_fifo_wr_idx;
@@ -203,22 +202,20 @@ module cxof_controller (
                 end
                 S_INIT_WAIT: begin
                     if (perm_done) begin
-                        cxof_state <= perm_state_out;
                         state      <= S_LEN_KICK;
                     end
                 end
 
                 S_LEN_KICK: begin
                     // XOR cs_total_bits into state[63:0] then permute
-                    perm_state_in <= {cxof_state[319:64],
-                                      cxof_state[63:0] ^ {48'd0, cs_total_bits}};
+                    perm_state_in <= {perm_state_out[319:64],
+                                      perm_state_out[63:0] ^ {48'd0, cs_total_bits}};
                     perm_rounds   <= 4'd12;
                     perm_start    <= 1'b1;
                     state         <= S_LEN_WAIT;
                 end
                 S_LEN_WAIT: begin
                     if (perm_done) begin
-                        cxof_state    <= perm_state_out;
                         cs_last_seen  <= 1'b0;
                         // If CS is empty (cs_total_bits == 0), still need padded absorb
                         if (cs_total_bits == 16'd0) begin
@@ -240,13 +237,13 @@ module cxof_controller (
                         cs_last_seen        <= in_word_last;
                             in_word_ready       <= 1'b0;
                         if (in_word_last) begin
-                            perm_state_in <= {cxof_state[319:64],
-                                              cxof_state[63:0]
+                            perm_state_in <= {perm_state_out[319:64],
+                                              perm_state_out[63:0]
                                               ^ (in_word & mask_n(in_word_bytes))
                                               ^ pad_val(in_word_bytes)};
                         end else begin
-                            perm_state_in <= {cxof_state[319:64],
-                                              cxof_state[63:0] ^ in_word};
+                            perm_state_in <= {perm_state_out[319:64],
+                                              perm_state_out[63:0] ^ in_word};
                         end
                         state <= S_CS_ABSORB;
                     end
@@ -258,7 +255,6 @@ module cxof_controller (
                 end
                 S_CS_WAIT: begin
                     if (perm_done) begin
-                        cxof_state <= perm_state_out;
                         if (cs_last_seen) begin
                             msg_last_seen <= 1'b0;
                             // First iteration or chained iteration?
@@ -288,13 +284,13 @@ module cxof_controller (
                         msg_last_seen <= in_word_last;
                         in_word_ready <= 1'b0;
                         if (in_word_last) begin
-                            perm_state_in <= {cxof_state[319:64],
-                                              cxof_state[63:0]
+                            perm_state_in <= {perm_state_out[319:64],
+                                              perm_state_out[63:0]
                                               ^ (in_word & mask_n(in_word_bytes))
                                               ^ pad_val(in_word_bytes)};
                         end else begin
-                            perm_state_in <= {cxof_state[319:64],
-                                              cxof_state[63:0] ^ in_word};
+                            perm_state_in <= {perm_state_out[319:64],
+                                              perm_state_out[63:0] ^ in_word};
                         end
                         state <= S_MSG_ABSORB;
                     end
@@ -314,8 +310,8 @@ module cxof_controller (
                         // blocks then do an ADDITIONAL padded-empty absorb.
                         // So: this iteration absorbs the word as a FULL block
                         // (not last), then we need one more padded-empty absorb.
-                        perm_state_in <= {cxof_state[319:64],
-                                          cxof_state[63:0] ^ chain_fifo[chain_fifo_rd_idx]};
+                        perm_state_in <= {perm_state_out[319:64],
+                                          perm_state_out[63:0] ^ chain_fifo[chain_fifo_rd_idx]};
                         msg_last_seen <= 1'b0;  // we still need padded-empty absorb after
                         // Mark that next absorb should be padded-empty
                         chain_fifo_rd_idx <= 2'd0;  // sentinel: reset for next round
@@ -325,8 +321,8 @@ module cxof_controller (
                         // go to S_CHAIN_FINAL_PAD (added below).
                         state <= S_MSG_ABSORB;  // sequencing handled in S_MSG_WAIT
                     end else begin
-                        perm_state_in <= {cxof_state[319:64],
-                                          cxof_state[63:0] ^ chain_fifo[chain_fifo_rd_idx]};
+                        perm_state_in <= {perm_state_out[319:64],
+                                          perm_state_out[63:0] ^ chain_fifo[chain_fifo_rd_idx]};
                         chain_fifo_rd_idx <= chain_fifo_rd_idx + 2'd1;
                         msg_last_seen     <= 1'b0;
                         state             <= S_MSG_ABSORB;
@@ -340,7 +336,6 @@ module cxof_controller (
                 end
                 S_MSG_WAIT: begin
                     if (perm_done) begin
-                        cxof_state <= perm_state_out;
                         if (msg_last_seen) begin
                             chain_fifo_wr_idx <= 2'd0;
                             state             <= S_SQ_EMIT;
@@ -365,11 +360,11 @@ module cxof_controller (
 
                 S_SQ_EMIT: begin
                     if (chain_enable) begin
-                        chain_fifo[chain_fifo_wr_idx] <= cxof_state[63:0];
+                        chain_fifo[chain_fifo_wr_idx] <= perm_state_out[63:0];
                         chain_fifo_wr_idx             <= chain_fifo_wr_idx + 2'd1;
                     end
                     if (emit_external) begin
-                        out_block <= cxof_state[63:0];
+                        out_block <= perm_state_out[63:0];
                         out_valid <= 1'b1;
                         if (out_remaining <= 16'd8) begin
                             out_last       <= 1'b1;
@@ -401,14 +396,13 @@ module cxof_controller (
                 end
 
                 S_SQ_PERM: begin
-                    perm_state_in <= cxof_state;
+                    perm_state_in <= perm_state_out;
                     perm_rounds   <= 4'd12;
                     perm_start    <= 1'b1;
                     state         <= S_SQ_WAIT;
                 end
                 S_SQ_WAIT: begin
                     if (perm_done) begin
-                        cxof_state <= perm_state_out;
                         state      <= S_SQ_EMIT;
                     end
                 end
