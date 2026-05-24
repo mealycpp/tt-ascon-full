@@ -214,7 +214,7 @@ module uart_bridge #(
     byte_fifo #(.DEPTH(FIFO_DEPTH), .AW(FIFO_AW)) u_tx2_fifo (
         .clk(clk), .rst_n(rst_n),
         .wr_en(unpk_byte_valid), .wr_data(unpk_byte), .full(tx2_fifo_full),
-        .rd_en(u_tx2_send_pulse), .rd_data(tx2_fifo_rd_data),
+        .rd_en(u_tx2_send_pulse && !tx2_fifo_empty), .rd_data(tx2_fifo_rd_data),
         .empty(tx2_fifo_empty), .count(tx2_fifo_count_unused)
     );
 
