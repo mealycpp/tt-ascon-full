@@ -54,7 +54,6 @@ module mode_controller (
     output reg          done
 );
 
-    localparam M_IDLE        = 3'd0;
     localparam M_HASH256     = 3'd1;
     localparam M_XOF128      = 3'd2;
     localparam M_CXOF128     = 3'd3;
@@ -62,8 +61,6 @@ module mode_controller (
     localparam M_AEAD_ENC    = 3'd5;
     localparam M_AEAD_DEC    = 3'd6;
     localparam M_XOF_CHAIN   = 3'd7;
-
-    reg [2:0] active_mode;
 
     // Registered one-hot controller selects.
     reg sel_hash_r;
@@ -95,7 +92,6 @@ module mode_controller (
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            active_mode <= M_IDLE;
             sel_hash_r  <= 1'b0;
             sel_xof_r   <= 1'b0;
             sel_cxof_r  <= 1'b0;
@@ -111,13 +107,11 @@ module mode_controller (
             aead_start <= 1'b0;
 
             if (reset_engine) begin
-                active_mode <= M_IDLE;
-                sel_hash_r  <= 1'b0;
+                    sel_hash_r  <= 1'b0;
                 sel_xof_r   <= 1'b0;
                 sel_cxof_r  <= 1'b0;
                 sel_aead_r  <= 1'b0;
             end else if (start && !busy) begin
-                active_mode <= mode_sel;
 
                 sel_hash_r <= (mode_sel == M_HASH256);
                 sel_xof_r  <= (mode_sel == M_XOF128) || (mode_sel == M_XOF_CHAIN);
@@ -138,8 +132,7 @@ module mode_controller (
                         aead_start <= 1'b1;
                     end
                     default: begin
-                        active_mode <= M_IDLE;
-                        sel_hash_r  <= 1'b0;
+                                    sel_hash_r  <= 1'b0;
                         sel_xof_r   <= 1'b0;
                         sel_cxof_r  <= 1'b0;
                         sel_aead_r  <= 1'b0;
@@ -363,7 +356,5 @@ module mode_controller (
             auth_ok        = aead_auth_ok;
         end
     end
-
-    wire _unused = &{active_mode, 1'b0};
 
 endmodule
