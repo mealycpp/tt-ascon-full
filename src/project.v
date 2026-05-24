@@ -163,7 +163,10 @@ module tt_um_mealycpp_ascon_full (
     wire [63:0] sdmc_in_word_w;
     wire [3:0]  sdmc_in_word_bytes_w;
     wire        sdmc_in_word_valid_w;
+    wire        sdmc_in_word_last_w;
     wire        sdmc_in_word_ready_w;
+    wire        flush_lane1_w;
+    wire        flush_lane2_w;
     wire        sdmc_done_w;
     wire        router_busy_w;
 
@@ -180,10 +183,15 @@ module tt_um_mealycpp_ascon_full (
         .pack_word_0(pack_word_0), .pack_bytes_0(pack_bytes_0), .pack_valid_0(pack_valid_0),
         .pack_word_1(pack_word_1), .pack_bytes_1(pack_bytes_1), .pack_valid_1(pack_valid_1),
         .pack_word_2(pack_word_2), .pack_bytes_2(pack_bytes_2), .pack_valid_2(pack_valid_2),
+        .pack_pending_1(pack_pending_1),
+        .pack_pending_2(pack_pending_2),
         .phase_sel(phase_sel_w),
+        .flush_lane1(flush_lane1_w),
+        .flush_lane2(flush_lane2_w),
         .sdmc_in_word(sdmc_in_word_w),
         .sdmc_in_word_bytes(sdmc_in_word_bytes_w),
         .sdmc_in_word_valid(sdmc_in_word_valid_w),
+        .sdmc_in_word_last(sdmc_in_word_last_w),
         .router_busy(router_busy_w)
     );
 
@@ -192,8 +200,9 @@ module tt_um_mealycpp_ascon_full (
     assign pack_ready_1 = (phase_sel_w == 2'd1) && sdmc_in_word_ready_w;
     assign pack_ready_2 = (phase_sel_w == 2'd2) && sdmc_in_word_ready_w;
 
-    // Flush lanes: tie off for now (parser doesn't drive flush yet).
-    assign flush_lanes = 3'b000;
+    // Flush final partial words from the active payload lanes.
+    // bit0/UART0 is control only; bit1/UART1 and bit2/UART2 are crypto lanes.
+    assign flush_lanes = {flush_lane2_w, flush_lane1_w, 1'b0};
 
     // --------------------------------------------------------------
     // mode_controller: SDMC dispatcher with ONE shared ascon_permutation
@@ -217,7 +226,7 @@ module tt_um_mealycpp_ascon_full (
         .data_total_bytes(data_total_bytes_w),
         .in_word(sdmc_in_word_w),
         .in_word_bytes(sdmc_in_word_bytes_w),
-        .in_word_last(1'b0),               // unused by controllers (FSM-internal)
+        .in_word_last(sdmc_in_word_last_w),
         .in_word_is_cs(phase_sel_w == 2'd1), // CS phase only when on UART1 for CXOF
         .in_word_valid(sdmc_in_word_valid_w),
         .in_word_ready(sdmc_in_word_ready_w),

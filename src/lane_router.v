@@ -58,13 +58,19 @@ module lane_router (
     input  wire [3:0]  pack_bytes_2,
     input  wire        pack_valid_2,
 
-    // To bridge: word mux select
+    input  wire [3:0]  pack_pending_1,
+    input  wire [3:0]  pack_pending_2,
+
+    // To bridge: word mux select and final-partial-word flush
     output reg  [1:0]  phase_sel,
+    output wire        flush_lane1,
+    output wire        flush_lane2,
 
     // To mode_controller: 64-bit input stream
     output wire [63:0] sdmc_in_word,
     output wire [3:0]  sdmc_in_word_bytes,
     output wire        sdmc_in_word_valid,
+    output wire        sdmc_in_word_last,
 
     // Status (for top integration / debug)
     output reg         router_busy
@@ -107,14 +113,35 @@ module lane_router (
                                : (phase_sel == 2'd2) ? pack_bytes_2
                                : 4'd0;
 
+    wire [3:0]  lane_pending = (phase_sel == 2'd1) ? pack_pending_1
+                              : (phase_sel == 2'd2) ? pack_pending_2
+                              : 4'd0;
+
     // Gate: only present a word to SDMC when we're actively in a lane
     // state (S_UART1 or S_UART2) AND bytes still expected.
     wire active = (state == S_UART1) || (state == S_UART2);
     wire any_left = (bytes_left != 17'd0);
 
+    wire [16:0] lane_sel_bytes_ext = {13'd0, lane_sel_bytes};
+
+    // Final partial word handling:
+    // If the selected packer has accumulated exactly the remaining
+    // byte count and it is less than one full 64-bit word, flush it.
+    wire final_partial_pending =
+        active &&
+        any_left &&
+        (bytes_left < 17'd8) &&
+        !lane_sel_valid &&
+        (lane_pending == bytes_left[3:0]);
+
+    assign flush_lane1 = final_partial_pending && (phase_sel == 2'd1);
+    assign flush_lane2 = final_partial_pending && (phase_sel == 2'd2);
+
     assign sdmc_in_word        = lane_sel_word;
     assign sdmc_in_word_bytes  = lane_sel_bytes;
     assign sdmc_in_word_valid  = lane_sel_valid && active && any_left;
+    assign sdmc_in_word_last   = sdmc_in_word_valid &&
+                                 (lane_sel_bytes_ext >= bytes_left);
 
     // ============================================================
     // FSM + byte counter
