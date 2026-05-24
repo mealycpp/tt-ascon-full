@@ -7,7 +7,7 @@ project:
   language:     "Verilog"
   clock_hz:     50000000
 
-  tiles: "8x2"
+  tiles: "5x4"
 
   top_module:  "tt_um_mealycpp_ascon_full"
 
