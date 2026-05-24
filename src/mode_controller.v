@@ -1,25 +1,12 @@
 /*
  * mode_controller.v — SDMC-ASCON dispatcher (streaming I/O).
  *
- * ONE shared ascon_permutation instance. All sub-controllers expose
- * streaming 64-bit input/output handshakes. No wide ports.
- *
- * Width inventory (audit):
- *   perm_state_in mux:  320 bit, combinational -> registered inside ascon_permutation
- *   in_word broadcast:   64 bit, fan-out wire (NOT a mux)
- *   in_word_valid gate:   1 bit, AND'd with active-mode select
- *   in_word_ready mux:    1 bit, combinational
- *   out_block mux:       64 bit, combinational -> goes to chip TX/FIFO downstream
- *   out_valid/last/bc mux: 1-4 bit
- *
- * Mode encoding:
- *   3'd0: IDLE
- *   3'd1: Hash256
- *   3'd2: XOF128
- *   3'd3: CXOF128 single
- *   3'd4: CXOF128 chained
- *   3'd5: AEAD-128 encrypt (reserved)
- *   3'd6: AEAD-128 decrypt (reserved)
+ * Area/fanout surgery version:
+ *   - ONE shared ascon_permutation instance.
+ *   - Decode mode once at operation start.
+ *   - Use registered one-hot selects for controller routing.
+ *   - Avoid repeated active_mode equality decoders in every mux.
+ *   - No wide message/result buffers.
  */
 `default_nettype none
 
@@ -45,7 +32,7 @@ module mode_controller (
     input  wire [15:0]  ad_total_bytes,
     input  wire [15:0]  data_total_bytes,
 
-    // Streaming input (64-bit, FIFO-friendly)
+    // Streaming input
     input  wire [63:0]  in_word,
     input  wire [3:0]   in_word_bytes,
     input  wire         in_word_last,
@@ -53,13 +40,13 @@ module mode_controller (
     input  wire         in_word_valid,
     output reg          in_word_ready,
 
-    // Streaming output (64-bit, FIFO-friendly)
+    // Streaming output
     output reg  [63:0]  out_block,
     output reg          out_valid,
     output reg          out_last,
     output reg  [3:0]   out_byte_count,
 
-    // AEAD auth result (valid on done in decrypt mode)
+    // AEAD auth result
     output reg          auth_ok,
 
     // Status
@@ -78,7 +65,13 @@ module mode_controller (
 
     reg [2:0] active_mode;
 
-    // ---------------- Shared permutation (THE ONE) ----------------
+    // Registered one-hot controller selects.
+    reg sel_hash_r;
+    reg sel_xof_r;
+    reg sel_cxof_r;
+    reg sel_aead_r;
+
+    // ---------------- Shared permutation: THE ONLY physical ASCON datapath ----------------
     reg          perm_start;
     reg  [3:0]   perm_rounds;
     reg  [319:0] perm_state_in;
@@ -97,17 +90,16 @@ module mode_controller (
         .done       (perm_done)
     );
 
-    // ---------------- Selection ----------------
-    wire sel_hash = (active_mode == M_HASH256);
-    wire sel_xof  = (active_mode == M_XOF128) || (active_mode == M_XOF_CHAIN);
-    wire sel_cxof = (active_mode == M_CXOF128) || (active_mode == M_CXOF_CHAIN);
-    wire sel_aead = (active_mode == M_AEAD_ENC) || (active_mode == M_AEAD_DEC);
-
-    // ---------------- Start routing ----------------
+    // ---------------- Start routing and one-hot decode ----------------
     reg hash_start, xof_start, cxof_start, aead_start;
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             active_mode <= M_IDLE;
+            sel_hash_r  <= 1'b0;
+            sel_xof_r   <= 1'b0;
+            sel_cxof_r  <= 1'b0;
+            sel_aead_r  <= 1'b0;
             hash_start  <= 1'b0;
             xof_start   <= 1'b0;
             cxof_start  <= 1'b0;
@@ -117,30 +109,53 @@ module mode_controller (
             xof_start  <= 1'b0;
             cxof_start <= 1'b0;
             aead_start <= 1'b0;
-            if (start && !busy) begin
+
+            if (reset_engine) begin
+                active_mode <= M_IDLE;
+                sel_hash_r  <= 1'b0;
+                sel_xof_r   <= 1'b0;
+                sel_cxof_r  <= 1'b0;
+                sel_aead_r  <= 1'b0;
+            end else if (start && !busy) begin
                 active_mode <= mode_sel;
+
+                sel_hash_r <= (mode_sel == M_HASH256);
+                sel_xof_r  <= (mode_sel == M_XOF128) || (mode_sel == M_XOF_CHAIN);
+                sel_cxof_r <= (mode_sel == M_CXOF128) || (mode_sel == M_CXOF_CHAIN);
+                sel_aead_r <= (mode_sel == M_AEAD_ENC) || (mode_sel == M_AEAD_DEC);
+
                 case (mode_sel)
-                    M_HASH256:    hash_start <= 1'b1;
-                    M_XOF128,
-                    M_XOF_CHAIN:  xof_start  <= 1'b1;
-                    M_CXOF128,
-                    M_CXOF_CHAIN: cxof_start <= 1'b1;
-                    M_AEAD_ENC,
-                    M_AEAD_DEC:   aead_start <= 1'b1;
-                    default: ;
+                    M_HASH256: begin
+                        hash_start <= 1'b1;
+                    end
+                    M_XOF128, M_XOF_CHAIN: begin
+                        xof_start <= 1'b1;
+                    end
+                    M_CXOF128, M_CXOF_CHAIN: begin
+                        cxof_start <= 1'b1;
+                    end
+                    M_AEAD_ENC, M_AEAD_DEC: begin
+                        aead_start <= 1'b1;
+                    end
+                    default: begin
+                        active_mode <= M_IDLE;
+                        sel_hash_r  <= 1'b0;
+                        sel_xof_r   <= 1'b0;
+                        sel_cxof_r  <= 1'b0;
+                        sel_aead_r  <= 1'b0;
+                    end
                 endcase
             end
         end
     end
 
-    // ---------------- in_word_valid gating per sub-controller ----------------
-    wire hash_in_valid = in_word_valid & sel_hash;
-    wire xof_in_valid  = in_word_valid & sel_xof;
-    wire cxof_in_valid = in_word_valid & sel_cxof;
-    wire aead_in_valid = in_word_valid & sel_aead;
+    // ---------------- in_word_valid gating ----------------
+    wire hash_in_valid = in_word_valid & sel_hash_r;
+    wire xof_in_valid  = in_word_valid & sel_xof_r;
+    wire cxof_in_valid = in_word_valid & sel_cxof_r;
+    wire aead_in_valid = in_word_valid & sel_aead_r;
 
-    // ---------------- Sub-controllers ----------------
-    // Hash256
+    // ---------------- Hash256 controller ----------------
     wire          hash_perm_start;
     wire [3:0]    hash_perm_rounds;
     wire [319:0]  hash_perm_state_in;
@@ -166,10 +181,10 @@ module mode_controller (
         .perm_state_in(hash_perm_state_in),
         .perm_state_out(perm_state_out),
         .perm_busy(perm_busy),
-        .perm_done(perm_done & sel_hash)
+        .perm_done(perm_done & sel_hash_r)
     );
 
-    // XOF128
+    // ---------------- XOF128 controller ----------------
     wire          xof_perm_start;
     wire [3:0]    xof_perm_rounds;
     wire [319:0]  xof_perm_state_in;
@@ -197,10 +212,10 @@ module mode_controller (
         .perm_state_in(xof_perm_state_in),
         .perm_state_out(perm_state_out),
         .perm_busy(perm_busy),
-        .perm_done(perm_done & sel_xof)
+        .perm_done(perm_done & sel_xof_r)
     );
 
-    // CXOF128
+    // ---------------- CXOF128 controller ----------------
     wire          cxof_perm_start;
     wire [3:0]    cxof_perm_rounds;
     wire [319:0]  cxof_perm_state_in;
@@ -230,10 +245,10 @@ module mode_controller (
         .perm_state_in(cxof_perm_state_in),
         .perm_state_out(perm_state_out),
         .perm_busy(perm_busy),
-        .perm_done(perm_done & sel_cxof)
+        .perm_done(perm_done & sel_cxof_r)
     );
 
-    // AEAD-128
+    // ---------------- AEAD128 controller ----------------
     wire          aead_perm_start;
     wire [3:0]    aead_perm_rounds;
     wire [319:0]  aead_perm_state_in;
@@ -264,109 +279,91 @@ module mode_controller (
         .perm_state_in(aead_perm_state_in),
         .perm_state_out(perm_state_out),
         .perm_busy(perm_busy),
-        .perm_done(perm_done & sel_aead)
+        .perm_done(perm_done & sel_aead_r)
     );
 
-    // ---------------- Perm arbiter (320b mux -> registered destination) ----------------
+    // ---------------- Perm arbiter ----------------
     always @(*) begin
-        case (active_mode)
-            M_HASH256: begin
-                perm_start    = hash_perm_start;
-                perm_rounds   = hash_perm_rounds;
-                perm_state_in = hash_perm_state_in;
-            end
-            M_XOF128,
-            M_XOF_CHAIN: begin
-                perm_start    = xof_perm_start;
-                perm_rounds   = xof_perm_rounds;
-                perm_state_in = xof_perm_state_in;
-            end
-            M_CXOF128,
-            M_CXOF_CHAIN: begin
-                perm_start    = cxof_perm_start;
-                perm_rounds   = cxof_perm_rounds;
-                perm_state_in = cxof_perm_state_in;
-            end
-            M_AEAD_ENC,
-            M_AEAD_DEC: begin
-                perm_start    = aead_perm_start;
-                perm_rounds   = aead_perm_rounds;
-                perm_state_in = aead_perm_state_in;
-            end
-            default: begin
-                perm_start    = 1'b0;
-                perm_rounds   = 4'd12;
-                perm_state_in = 320'd0;
-            end
-        endcase
+        perm_start    = 1'b0;
+        perm_rounds   = 4'd12;
+        perm_state_in = 320'd0;
+
+        if (sel_hash_r) begin
+            perm_start    = hash_perm_start;
+            perm_rounds   = hash_perm_rounds;
+            perm_state_in = hash_perm_state_in;
+        end else if (sel_xof_r) begin
+            perm_start    = xof_perm_start;
+            perm_rounds   = xof_perm_rounds;
+            perm_state_in = xof_perm_state_in;
+        end else if (sel_cxof_r) begin
+            perm_start    = cxof_perm_start;
+            perm_rounds   = cxof_perm_rounds;
+            perm_state_in = cxof_perm_state_in;
+        end else if (sel_aead_r) begin
+            perm_start    = aead_perm_start;
+            perm_rounds   = aead_perm_rounds;
+            perm_state_in = aead_perm_state_in;
+        end
     end
 
-    // ---------------- in_word_ready mux (1 bit) ----------------
+    // ---------------- Input ready mux ----------------
     always @(*) begin
-        case (active_mode)
-            M_HASH256:    in_word_ready = hash_in_ready;
-            M_XOF128,
-            M_XOF_CHAIN:  in_word_ready = xof_in_ready;
-            M_CXOF128,
-            M_CXOF_CHAIN: in_word_ready = cxof_in_ready;
-            M_AEAD_ENC,
-            M_AEAD_DEC:   in_word_ready = aead_in_ready;
-            default:      in_word_ready = 1'b0;
-        endcase
+        in_word_ready = 1'b0;
+
+        if (sel_hash_r) begin
+            in_word_ready = hash_in_ready;
+        end else if (sel_xof_r) begin
+            in_word_ready = xof_in_ready;
+        end else if (sel_cxof_r) begin
+            in_word_ready = cxof_in_ready;
+        end else if (sel_aead_r) begin
+            in_word_ready = aead_in_ready;
+        end
     end
 
-    // ---------------- Output mux (uniform 64-bit) ----------------
+    // ---------------- Output/status mux ----------------
     always @(*) begin
-        case (active_mode)
-            M_HASH256: begin
-                out_block      = hash_out_block;
-                out_valid      = hash_out_valid;
-                out_last       = hash_out_last;
-                out_byte_count = hash_out_byte_count;
-                busy           = hash_busy;
-                done           = hash_done;
-                auth_ok        = 1'b0;
-            end
-            M_XOF128,
-            M_XOF_CHAIN: begin
-                out_block      = xof_out_block;
-                out_valid      = xof_out_valid;
-                out_last       = xof_out_last;
-                out_byte_count = xof_out_byte_count;
-                busy           = xof_busy;
-                done           = xof_done;
-                auth_ok        = 1'b0;
-            end
-            M_CXOF128,
-            M_CXOF_CHAIN: begin
-                out_block      = cxof_out_block;
-                out_valid      = cxof_out_valid;
-                out_last       = cxof_out_last;
-                out_byte_count = cxof_out_byte_count;
-                busy           = cxof_busy;
-                done           = cxof_done;
-                auth_ok        = 1'b0;
-            end
-            M_AEAD_ENC,
-            M_AEAD_DEC: begin
-                out_block      = aead_out_block;
-                out_valid      = aead_out_valid;
-                out_last       = aead_out_last;
-                out_byte_count = aead_out_byte_count;
-                busy           = aead_busy;
-                done           = aead_done;
-                auth_ok        = aead_auth_ok;
-            end
-            default: begin
-                out_block      = 64'd0;
-                out_valid      = 1'b0;
-                out_last       = 1'b0;
-                out_byte_count = 4'd0;
-                busy           = 1'b0;
-                done           = 1'b0;
-                auth_ok        = 1'b0;
-            end
-        endcase
+        out_block      = 64'd0;
+        out_valid      = 1'b0;
+        out_last       = 1'b0;
+        out_byte_count = 4'd0;
+        busy           = 1'b0;
+        done           = 1'b0;
+        auth_ok        = 1'b0;
+
+        if (sel_hash_r) begin
+            out_block      = hash_out_block;
+            out_valid      = hash_out_valid;
+            out_last       = hash_out_last;
+            out_byte_count = hash_out_byte_count;
+            busy           = hash_busy;
+            done           = hash_done;
+        end else if (sel_xof_r) begin
+            out_block      = xof_out_block;
+            out_valid      = xof_out_valid;
+            out_last       = xof_out_last;
+            out_byte_count = xof_out_byte_count;
+            busy           = xof_busy;
+            done           = xof_done;
+        end else if (sel_cxof_r) begin
+            out_block      = cxof_out_block;
+            out_valid      = cxof_out_valid;
+            out_last       = cxof_out_last;
+            out_byte_count = cxof_out_byte_count;
+            busy           = cxof_busy;
+            done           = cxof_done;
+        end else if (sel_aead_r) begin
+            out_block      = aead_out_block;
+            out_valid      = aead_out_valid;
+            out_last       = aead_out_last;
+            out_byte_count = aead_out_byte_count;
+            busy           = aead_busy;
+            done           = aead_done;
+            auth_ok        = aead_auth_ok;
+        end
     end
+
+    wire _unused = &{active_mode, 1'b0};
 
 endmodule
