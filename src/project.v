@@ -113,40 +113,11 @@ module tt_um_mealycpp_ascon_full (
     );
 
     // --------------------------------------------------------------
-    // protocol_parser: decode UART0 14-byte control frame
-    // Pulls bytes from pack_word_0/byte stream? No — parser is byte-level.
-    // The bridge feeds 64-bit words from UART0 RX through packer.
-    // We need byte-level access to UART0 for the parser.
-    // Solution: the parser reads from pack_word_0 ONE BYTE AT A TIME.
-    // But the packer aggregates 8 bytes into 1 word.
+    // protocol_parser: decode UART0 14-byte control frame.
     //
-    // Better: we need a separate byte tap on UART0 RX FIFO output for
-    // the parser. The packer is consuming bytes via FIFO read; parser
-    // also wants the same byte stream.
-    //
-    // Cleanest fix without re-architecting: route UART0 RX bytes to
-    // BOTH the bridge's RX0 path AND a parallel parser byte path.
-    // But uart_bridge owns the UART0 RX FIFO read pointer.
-    //
-    // Honest call: for Phase 4 minimum-composing, parser reads from
-    // pack_word_0 directly. Parser sees a 64-bit word, treats it as
-    // 8 bytes back-to-back. Frame is 14 bytes = 2 words (last word
-    // has only 6 valid bytes). The parser needs to know byte-by-byte
-    // input AND we need to unpack the word into 8 bytes for it.
-    //
-    // We'd need a byte_unpacker between pack_0 and parser. But every
-    // byte the bridge sees on UART0 is meant for the CONTROL frame,
-    // never for crypto input. So pack_0's output can be fed to a
-    // dedicated unpacker that drives the parser byte-by-byte.
-    //
-    // For NOW (Phase 4 wiring only): tie parser inputs OFF and the
-    // composition still compiles. We'll come back and wire the
-    // UART0->parser byte path properly. This is the smallest step
-    // that produces a real top.
-    //
-    // FLAGGING THIS as a known limitation — parser is wired to
-    // mode_controller signals but never receives bytes. project.v
-    // composes but is not yet functional for control frames.
+    // UART0 is byte-level control only. uart_bridge exposes a parser
+    // byte stream from its UART0 FIFO, and protocol_parser consumes it
+    // with ready/valid. UART0 is not used as a crypto payload lane.
     // --------------------------------------------------------------
     wire [2:0]  mode_sel_w;
     wire        is_decrypt_w;
@@ -214,7 +185,7 @@ module tt_um_mealycpp_ascon_full (
     );
 
     // Bridge pack_ready demux: only the selected lane gets ready.
-    assign pack_ready_0 = (phase_sel_w == 2'd0) && sdmc_in_word_ready_w;
+    assign pack_ready_0 = 1'b0;
     assign pack_ready_1 = (phase_sel_w == 2'd1) && sdmc_in_word_ready_w;
     assign pack_ready_2 = (phase_sel_w == 2'd2) && sdmc_in_word_ready_w;
 
