@@ -42,7 +42,6 @@ module uart_tx (
         if (!rst_n) begin
             state   <= S_IDLE;
             bit_idx <= 4'd0;
-            shift   <= 8'd0;
             tx      <= 1'b1;
             ready   <= 1'b1;
             cnt     <= 16'd0;
