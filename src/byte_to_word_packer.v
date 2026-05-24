@@ -41,7 +41,6 @@ module byte_to_word_packer (
                 out_word_valid <= 1'b0;
                 out_word_bytes <= 4'd0;
                 byte_idx       <= 3'd0;
-                accumulator    <= 64'd0;
             end
 
             if (flush && flush_ready) begin
