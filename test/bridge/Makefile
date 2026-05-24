@@ -30,4 +30,11 @@ TOPLEVEL = tb_uart_bridge
 COCOTB_TEST_MODULES = test_uart_bridge
 endif
 
+
+ifeq ($(TEST),parser)
+VERILOG_SOURCES = $(SRC_DIR)/protocol_parser.v $(PWD)/tb_protocol_parser.v
+TOPLEVEL = tb_protocol_parser
+COCOTB_TEST_MODULES = test_protocol_parser
+endif
+
 include $(shell cocotb-config --makefiles)/Makefile.sim
