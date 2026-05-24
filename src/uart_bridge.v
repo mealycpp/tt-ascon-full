@@ -192,12 +192,53 @@ module uart_bridge #(
     wire       unpk_byte_valid;
     wire       unpk_byte_ready;
 
+    // Output word FIFO:
+    // mode_controller produces 64-bit words much faster than UART can drain.
+    // Buffer complete output words here before byte-unpacking to UART2.
+    localparam TXW_DEPTH = 8;
+    localparam TXW_AW    = 3;
+
+    reg [63:0] txw_data  [0:TXW_DEPTH-1];
+    reg [3:0]  txw_count [0:TXW_DEPTH-1];
+    reg [TXW_AW:0] txw_wr_ptr;
+    reg [TXW_AW:0] txw_rd_ptr;
+
+    wire [TXW_AW-1:0] txw_wr_idx = txw_wr_ptr[TXW_AW-1:0];
+    wire [TXW_AW-1:0] txw_rd_idx = txw_rd_ptr[TXW_AW-1:0];
+
+    wire txw_empty = (txw_wr_ptr == txw_rd_ptr);
+    wire txw_full  = (txw_wr_ptr[TXW_AW] != txw_rd_ptr[TXW_AW]) &&
+                     (txw_wr_ptr[TXW_AW-1:0] == txw_rd_ptr[TXW_AW-1:0]);
+
+    assign sdmc_out_ready = !txw_full;
+
+    wire txw_unpk_ready;
+    wire txw_push = sdmc_out_valid && sdmc_out_ready;
+    wire txw_pop  = txw_unpk_ready && !txw_empty;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            txw_wr_ptr <= {TXW_AW+1{1'b0}};
+            txw_rd_ptr <= {TXW_AW+1{1'b0}};
+        end else begin
+            if (txw_push) begin
+                txw_data[txw_wr_idx]  <= sdmc_out_block;
+                txw_count[txw_wr_idx] <= sdmc_out_byte_count;
+                txw_wr_ptr <= txw_wr_ptr + 1'b1;
+            end
+
+            if (txw_pop) begin
+                txw_rd_ptr <= txw_rd_ptr + 1'b1;
+            end
+        end
+    end
+
     word_to_byte_unpacker u_unpk (
         .clk(clk), .rst_n(rst_n),
-        .in_word(sdmc_out_block),
-        .in_word_bytes(sdmc_out_byte_count),
-        .in_word_valid(sdmc_out_valid),
-        .in_word_ready(sdmc_out_ready),
+        .in_word(txw_data[txw_rd_idx]),
+        .in_word_bytes(txw_count[txw_rd_idx]),
+        .in_word_valid(!txw_empty),
+        .in_word_ready(txw_unpk_ready),
         .out_byte(unpk_byte),
         .out_byte_valid(unpk_byte_valid),
         .out_byte_ready(unpk_byte_ready)
