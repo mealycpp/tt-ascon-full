@@ -20,4 +20,14 @@ TOPLEVEL = tb_unpacker
 COCOTB_TEST_MODULES = test_unpacker
 endif
 
+
+ifeq ($(TEST),bridge)
+VERILOG_SOURCES = $(SRC_DIR)/uart_rx.v $(SRC_DIR)/uart_tx.v $(SRC_DIR)/baud_gen.v \
+                  $(SRC_DIR)/byte_fifo.v $(SRC_DIR)/byte_to_word_packer.v \
+                  $(SRC_DIR)/word_to_byte_unpacker.v $(SRC_DIR)/uart_bridge.v \
+                  $(PWD)/tb_uart_bridge.v
+TOPLEVEL = tb_uart_bridge
+COCOTB_TEST_MODULES = test_uart_bridge
+endif
+
 include $(shell cocotb-config --makefiles)/Makefile.sim
