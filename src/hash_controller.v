@@ -44,12 +44,13 @@ module hash_controller (
     localparam S_INIT_KICK   = 4'd1;
     localparam S_INIT_WAIT   = 4'd2;
     localparam S_MSG_PULL    = 4'd3;
-    localparam S_ABSORB_KICK = 4'd4;
-    localparam S_ABSORB_WAIT = 4'd5;
-    localparam S_SQ_OUT      = 4'd6;
-    localparam S_SQ_KICK     = 4'd7;
-    localparam S_SQ_WAIT     = 4'd8;
-    localparam S_DONE        = 4'd9;
+    localparam S_WORD_PREP   = 4'd4;
+    localparam S_ABSORB_KICK = 4'd5;
+    localparam S_ABSORB_WAIT = 4'd6;
+    localparam S_SQ_OUT      = 4'd7;
+    localparam S_SQ_KICK     = 4'd8;
+    localparam S_SQ_WAIT     = 4'd9;
+    localparam S_DONE        = 4'd10;
 
     localparam [63:0] HASH256_IV = 64'h0000_0801_00CC_0002;
 
@@ -99,6 +100,7 @@ function [63:0] pad_val;
     reg [63:0] perm_word;
     reg [3:0]  perm_bytes;
     reg        perm_last;
+    reg [63:0] absorb_word_r;
 
     wire [63:0] absorb_word =
         perm_last ? ((perm_word & mask_n(perm_bytes)) ^ pad_val(perm_bytes))
@@ -107,7 +109,7 @@ function [63:0] pad_val;
     assign perm_state_in =
         (perm_in_sel == PIN_INIT)  ? {256'd0, HASH256_IV} :
         (perm_in_sel == PIN_WORD)  ? {perm_state_out[319:64],
-                                      perm_state_out[63:0] ^ absorb_word} :
+                                      perm_state_out[63:0] ^ absorb_word_r} :
         (perm_in_sel == PIN_STATE) ? perm_state_out :
                                      320'd0;
 
@@ -130,6 +132,7 @@ function [63:0] pad_val;
             perm_word      <= 64'd0;
             perm_bytes     <= 4'd0;
             perm_last      <= 1'b0;
+            absorb_word_r  <= 64'd0;
         end else if (reset_engine) begin
             state          <= S_IDLE;
             busy           <= 1'b0;
@@ -167,9 +170,7 @@ function [63:0] pad_val;
                     if (perm_done) begin
                         if (msg_total_bytes == 16'd0) begin
                             perm_in_sel    <= PIN_WORD;
-                            perm_word      <= 64'd0;
-                            perm_bytes     <= 4'd0;
-                            perm_last      <= 1'b1;
+                            absorb_word_r  <= pad_val(4'd0);
                             last_word_seen <= 1'b1;
                             state          <= S_ABSORB_KICK;
                         end else begin
@@ -187,8 +188,13 @@ function [63:0] pad_val;
                         perm_bytes     <= in_word_bytes;
                         perm_last      <= in_word_last;
                         last_word_seen <= in_word_last;
-                        state          <= S_ABSORB_KICK;
+                        state          <= S_WORD_PREP;
                     end
+                end
+
+                S_WORD_PREP: begin
+                    absorb_word_r <= absorb_word;
+                    state         <= S_ABSORB_KICK;
                 end
 
                 S_ABSORB_KICK: begin
