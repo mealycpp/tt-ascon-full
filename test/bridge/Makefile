@@ -37,4 +37,11 @@ TOPLEVEL = tb_protocol_parser
 COCOTB_TEST_MODULES = test_protocol_parser
 endif
 
+
+ifeq ($(TEST),router)
+VERILOG_SOURCES = $(SRC_DIR)/lane_router.v $(PWD)/tb_lane_router.v
+TOPLEVEL = tb_lane_router
+COCOTB_TEST_MODULES = test_lane_router
+endif
+
 include $(shell cocotb-config --makefiles)/Makefile.sim
