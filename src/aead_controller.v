@@ -470,19 +470,19 @@ module aead_controller (
                     // or directly to aead_state (last, no permute).
                     // Encrypt: state ^= w  ; Decrypt: state = (state & ~mask)|(w & mask) ^ pad
                     if (data_blocks_left == 12'd1) begin
-                        // Last block: XOR into state, no permute, go to FINAL_KICK
+                        // Last block: XOR into state, no permute, go to FINAL_KICK.
+                        // Decrypt: S[i] = (S[i] & ~mask) ^ w_buf
+                        //   w_buf already contains (Ci_partial & mask) ^ pad_word
+                        //   because it was sourced that way in S_DATA_Wx_GET.
+                        // For w_real==8 (full word): S[i] := w_buf directly.
                         if (is_decrypt_r) begin
                             aead_state <= {aead_state[319:128],
-                                           // x1
-                                           (w1_real == 4'd8) ? w1_buf
-                                           : (((aead_state[127:64] & ~mask_lo(w1_real))
-                                              | (w1_buf & mask_lo(w1_real)))
-                                              ^ pad_word(w1_real)),
-                                           // x0
-                                           (w0_real == 4'd8) ? w0_buf
-                                           : (((aead_state[63:0] & ~mask_lo(w0_real))
-                                              | (w0_buf & mask_lo(w0_real)))
-                                              ^ pad_word(w0_real))};
+                                           (w1_real == 4'd8)
+                                              ? w1_buf
+                                              : ((aead_state[127:64] & ~mask_lo(w1_real)) ^ w1_buf),
+                                           (w0_real == 4'd8)
+                                              ? w0_buf
+                                              : ((aead_state[63:0] & ~mask_lo(w0_real)) ^ w0_buf)};
                         end else begin
                             aead_state <= {aead_state[319:128],
                                            aead_state[127:64] ^ w1_buf,
