@@ -161,8 +161,40 @@ module mode_controller (
     wire [3:0]   aead_perm_rounds;
 
     // -------------------------------------------------------------------------
-    // Shared patch-fed ASCON sponge core
+    // Three local buses feeding one physical patch-fed ASCON sponge core
+    //
+    // HASH bus  : HASH/XOF, x0-only readback
+    // CHAIN bus : CXOF/CXOF-chain, x0-only readback
+    // AEAD bus  : AEAD enc/dec, full x0..x4 readback
+    //
+    // Core outputs are captured on core_perm_done and forwarded to controllers
+    // with a one-cycle delayed done pulse. This removes live core_x* fanout.
     // -------------------------------------------------------------------------
+    wire hash_bus_sel  = sel_hash_r | sel_xof_r;
+    wire chain_bus_sel = sel_cxof_r;
+    wire aead_bus_sel  = sel_aead_r;
+
+    wire         hash_bus_patch_valid = sel_hash_r ? hash_patch_valid : xof_patch_valid;
+    wire [1:0]   hash_bus_patch_op    = sel_hash_r ? hash_patch_op    : xof_patch_op;
+    wire [2:0]   hash_bus_patch_lane  = sel_hash_r ? hash_patch_lane  : xof_patch_lane;
+    wire [63:0]  hash_bus_patch_data  = sel_hash_r ? hash_patch_data  : xof_patch_data;
+    wire         hash_bus_perm_start  = sel_hash_r ? hash_perm_start  : xof_perm_start;
+    wire [3:0]   hash_bus_perm_rounds = sel_hash_r ? hash_perm_rounds : xof_perm_rounds;
+
+    wire         chain_bus_patch_valid = cxof_patch_valid;
+    wire [1:0]   chain_bus_patch_op    = cxof_patch_op;
+    wire [2:0]   chain_bus_patch_lane  = cxof_patch_lane;
+    wire [63:0]  chain_bus_patch_data  = cxof_patch_data;
+    wire         chain_bus_perm_start  = cxof_perm_start;
+    wire [3:0]   chain_bus_perm_rounds = cxof_perm_rounds;
+
+    wire         aead_bus_patch_valid = aead_patch_valid;
+    wire [1:0]   aead_bus_patch_op    = aead_patch_op;
+    wire [2:0]   aead_bus_patch_lane  = aead_patch_lane;
+    wire [63:0]  aead_bus_patch_data  = aead_patch_data;
+    wire         aead_bus_perm_start  = aead_perm_start;
+    wire [3:0]   aead_bus_perm_rounds = aead_perm_rounds;
+
     reg         core_patch_valid;
     reg [1:0]   core_patch_op;
     reg [2:0]   core_patch_lane;
@@ -209,26 +241,21 @@ module mode_controller (
         core_patch_lane  = 3'd0;
         core_patch_data  = 64'd0;
 
-        if (sel_hash_r) begin
-            core_patch_valid = hash_patch_valid;
-            core_patch_op    = hash_patch_op;
-            core_patch_lane  = hash_patch_lane;
-            core_patch_data  = hash_patch_data;
-        end else if (sel_xof_r) begin
-            core_patch_valid = xof_patch_valid;
-            core_patch_op    = xof_patch_op;
-            core_patch_lane  = xof_patch_lane;
-            core_patch_data  = xof_patch_data;
-        end else if (sel_cxof_r) begin
-            core_patch_valid = cxof_patch_valid;
-            core_patch_op    = cxof_patch_op;
-            core_patch_lane  = cxof_patch_lane;
-            core_patch_data  = cxof_patch_data;
-        end else if (sel_aead_r) begin
-            core_patch_valid = aead_patch_valid;
-            core_patch_op    = aead_patch_op;
-            core_patch_lane  = aead_patch_lane;
-            core_patch_data  = aead_patch_data;
+        if (hash_bus_sel) begin
+            core_patch_valid = hash_bus_patch_valid;
+            core_patch_op    = hash_bus_patch_op;
+            core_patch_lane  = hash_bus_patch_lane;
+            core_patch_data  = hash_bus_patch_data;
+        end else if (chain_bus_sel) begin
+            core_patch_valid = chain_bus_patch_valid;
+            core_patch_op    = chain_bus_patch_op;
+            core_patch_lane  = chain_bus_patch_lane;
+            core_patch_data  = chain_bus_patch_data;
+        end else if (aead_bus_sel) begin
+            core_patch_valid = aead_bus_patch_valid;
+            core_patch_op    = aead_bus_patch_op;
+            core_patch_lane  = aead_bus_patch_lane;
+            core_patch_data  = aead_bus_patch_data;
         end
     end
 
@@ -236,25 +263,98 @@ module mode_controller (
         core_perm_start  = 1'b0;
         core_perm_rounds = 4'd12;
 
-        if (sel_hash_r) begin
-            core_perm_start  = hash_perm_start;
-            core_perm_rounds = hash_perm_rounds;
-        end else if (sel_xof_r) begin
-            core_perm_start  = xof_perm_start;
-            core_perm_rounds = xof_perm_rounds;
-        end else if (sel_cxof_r) begin
-            core_perm_start  = cxof_perm_start;
-            core_perm_rounds = cxof_perm_rounds;
-        end else if (sel_aead_r) begin
-            core_perm_start  = aead_perm_start;
-            core_perm_rounds = aead_perm_rounds;
+        if (hash_bus_sel) begin
+            core_perm_start  = hash_bus_perm_start;
+            core_perm_rounds = hash_bus_perm_rounds;
+        end else if (chain_bus_sel) begin
+            core_perm_start  = chain_bus_perm_start;
+            core_perm_rounds = chain_bus_perm_rounds;
+        end else if (aead_bus_sel) begin
+            core_perm_start  = aead_bus_perm_start;
+            core_perm_rounds = aead_bus_perm_rounds;
         end
     end
 
-    wire hash_core_done = core_perm_done & sel_hash_r;
-    wire xof_core_done  = core_perm_done & sel_xof_r;
-    wire cxof_core_done = core_perm_done & sel_cxof_r;
-    wire aead_core_done = core_perm_done & sel_aead_r;
+    wire hash_bus_patch_ready  = core_patch_ready & hash_bus_sel;
+    wire chain_bus_patch_ready = core_patch_ready & chain_bus_sel;
+    wire aead_bus_patch_ready  = core_patch_ready & aead_bus_sel;
+
+    wire hash_patch_ready_local = hash_bus_patch_ready & sel_hash_r;
+    wire xof_patch_ready_local  = hash_bus_patch_ready & sel_xof_r;
+    wire cxof_patch_ready_local = chain_bus_patch_ready & sel_cxof_r;
+    wire aead_patch_ready_local = aead_bus_patch_ready & sel_aead_r;
+
+    wire hash_bus_perm_busy  = core_perm_busy & hash_bus_sel;
+    wire chain_bus_perm_busy = core_perm_busy & chain_bus_sel;
+    wire aead_bus_perm_busy  = core_perm_busy & aead_bus_sel;
+
+    wire hash_perm_busy_local = hash_bus_perm_busy & sel_hash_r;
+    wire xof_perm_busy_local  = hash_bus_perm_busy & sel_xof_r;
+    wire cxof_perm_busy_local = chain_bus_perm_busy & sel_cxof_r;
+    wire aead_perm_busy_local = aead_bus_perm_busy & sel_aead_r;
+
+    reg [63:0] hash_bus_x0;
+    reg [63:0] chain_bus_x0;
+
+    reg [63:0] aead_bus_x0;
+    reg [63:0] aead_bus_x1;
+    reg [63:0] aead_bus_x2;
+    reg [63:0] aead_bus_x3;
+    reg [63:0] aead_bus_x4;
+
+    reg hash_core_done;
+    reg xof_core_done;
+    reg cxof_core_done;
+    reg aead_core_done;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            hash_bus_x0    <= 64'd0;
+            chain_bus_x0   <= 64'd0;
+            aead_bus_x0    <= 64'd0;
+            aead_bus_x1    <= 64'd0;
+            aead_bus_x2    <= 64'd0;
+            aead_bus_x3    <= 64'd0;
+            aead_bus_x4    <= 64'd0;
+            hash_core_done <= 1'b0;
+            xof_core_done  <= 1'b0;
+            cxof_core_done <= 1'b0;
+            aead_core_done <= 1'b0;
+        end else begin
+            hash_core_done <= 1'b0;
+            xof_core_done  <= 1'b0;
+            cxof_core_done <= 1'b0;
+            aead_core_done <= 1'b0;
+
+            if (reset_engine) begin
+                hash_bus_x0  <= 64'd0;
+                chain_bus_x0 <= 64'd0;
+                aead_bus_x0  <= 64'd0;
+                aead_bus_x1  <= 64'd0;
+                aead_bus_x2  <= 64'd0;
+                aead_bus_x3  <= 64'd0;
+                aead_bus_x4  <= 64'd0;
+            end else if (core_perm_done) begin
+                if (sel_hash_r) begin
+                    hash_bus_x0    <= core_x0;
+                    hash_core_done <= 1'b1;
+                end else if (sel_xof_r) begin
+                    hash_bus_x0   <= core_x0;
+                    xof_core_done <= 1'b1;
+                end else if (sel_cxof_r) begin
+                    chain_bus_x0   <= core_x0;
+                    cxof_core_done <= 1'b1;
+                end else if (sel_aead_r) begin
+                    aead_bus_x0    <= core_x0;
+                    aead_bus_x1    <= core_x1;
+                    aead_bus_x2    <= core_x2;
+                    aead_bus_x3    <= core_x3;
+                    aead_bus_x4    <= core_x4;
+                    aead_core_done <= 1'b1;
+                end
+            end
+        end
+    end
 
     // -------------------------------------------------------------------------
     // HASH256 patch controller
@@ -289,17 +389,17 @@ module mode_controller (
         .done           (hash_done),
 
         .patch_valid    (hash_patch_valid),
-        .patch_ready    (core_patch_ready),
+        .patch_ready    (hash_patch_ready_local),
         .patch_op       (hash_patch_op),
         .patch_lane     (hash_patch_lane),
         .patch_data     (hash_patch_data),
 
         .perm_start     (hash_perm_start),
         .perm_rounds    (hash_perm_rounds),
-        .perm_busy      (core_perm_busy),
+        .perm_busy      (hash_perm_busy_local),
         .perm_done      (hash_core_done),
 
-        .core_x0        (core_x0)
+        .core_x0        (hash_bus_x0)
     );
 
     // -------------------------------------------------------------------------
@@ -340,17 +440,17 @@ module mode_controller (
         .done           (xof_done),
 
         .patch_valid    (xof_patch_valid),
-        .patch_ready    (core_patch_ready),
+        .patch_ready    (xof_patch_ready_local),
         .patch_op       (xof_patch_op),
         .patch_lane     (xof_patch_lane),
         .patch_data     (xof_patch_data),
 
         .perm_start     (xof_perm_start),
         .perm_rounds    (xof_perm_rounds),
-        .perm_busy      (core_perm_busy),
+        .perm_busy      (xof_perm_busy_local),
         .perm_done      (xof_core_done),
 
-        .core_x0        (core_x0)
+        .core_x0        (hash_bus_x0)
     );
 
     // -------------------------------------------------------------------------
@@ -393,17 +493,17 @@ module mode_controller (
         .done           (cxof_done),
 
         .patch_valid    (cxof_patch_valid),
-        .patch_ready    (core_patch_ready),
+        .patch_ready    (cxof_patch_ready_local),
         .patch_op       (cxof_patch_op),
         .patch_lane     (cxof_patch_lane),
         .patch_data     (cxof_patch_data),
 
         .perm_start     (cxof_perm_start),
         .perm_rounds    (cxof_perm_rounds),
-        .perm_busy      (core_perm_busy),
+        .perm_busy      (cxof_perm_busy_local),
         .perm_done      (cxof_core_done),
 
-        .core_x0        (core_x0)
+        .core_x0        (chain_bus_x0)
     );
 
     // -------------------------------------------------------------------------
@@ -445,21 +545,21 @@ module mode_controller (
         .done            (aead_done),
 
         .patch_valid     (aead_patch_valid),
-        .patch_ready     (core_patch_ready),
+        .patch_ready     (aead_patch_ready_local),
         .patch_op        (aead_patch_op),
         .patch_lane      (aead_patch_lane),
         .patch_data      (aead_patch_data),
 
         .perm_start      (aead_perm_start),
         .perm_rounds     (aead_perm_rounds),
-        .perm_busy       (core_perm_busy),
+        .perm_busy       (aead_perm_busy_local),
         .perm_done       (aead_core_done),
 
-        .core_x0         (core_x0),
-        .core_x1         (core_x1),
-        .core_x2         (core_x2),
-        .core_x3         (core_x3),
-        .core_x4         (core_x4)
+        .core_x0         (aead_bus_x0),
+        .core_x1         (aead_bus_x1),
+        .core_x2         (aead_bus_x2),
+        .core_x3         (aead_bus_x3),
+        .core_x4         (aead_bus_x4)
     );
 
     // -------------------------------------------------------------------------
