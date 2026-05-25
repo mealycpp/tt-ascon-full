@@ -29,6 +29,11 @@ project:
     - "uart_bridge.v"
     - "protocol_parser.v"
     - "lane_router.v"
+    - ascon_sponge_core.v
+    - hash_patch_controller.v
+    - xof_patch_controller.v
+    - cxof_patch_controller.v
+    - aead_patch_controller.v
 
 pinout:
   ui[0]: "uart0_rx_ctrl"
