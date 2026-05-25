@@ -130,6 +130,228 @@ module mode_controller (
     wire aead_in_valid = in_word_valid & sel_aead_r;
 
     // -------------------------------------------------------------------------
+    // Chain-mode input/output FIFOs
+    //
+    // These two-entry FIFOs isolate XOF_CHAIN/CXOF_CHAIN from the global input
+    // and output muxes. They are timing firewalls: HASH and AEAD stay direct.
+    // -------------------------------------------------------------------------
+    wire xof_chain_mode  = sel_xof_r  & chain_enable;
+    wire cxof_chain_mode = sel_cxof_r & chain_enable;
+    wire chain_io_mode   = xof_chain_mode | cxof_chain_mode;
+
+    // Input FIFO: {word, byte_count, last, is_cs}
+    reg [63:0] chain_in_word_q0;
+    reg [63:0] chain_in_word_q1;
+    reg [3:0]  chain_in_bytes_q0;
+    reg [3:0]  chain_in_bytes_q1;
+    reg        chain_in_last_q0;
+    reg        chain_in_last_q1;
+    reg        chain_in_is_cs_q0;
+    reg        chain_in_is_cs_q1;
+    reg [1:0]  chain_in_count;
+
+    wire        chain_in_rd_valid = (chain_in_count != 2'd0);
+    wire        chain_in_rd_ready = (xof_chain_mode & xof_in_ready) |
+                                    (cxof_chain_mode & cxof_in_ready);
+    wire        chain_in_rd_fire  = chain_in_rd_valid & chain_in_rd_ready;
+    wire        chain_in_wr_ready = (chain_in_count != 2'd2) | chain_in_rd_fire;
+    wire        chain_in_wr_fire  = chain_io_mode & in_word_valid & chain_in_wr_ready;
+
+    wire [63:0] chain_in_word       = chain_in_word_q0;
+    wire [3:0]  chain_in_word_bytes = chain_in_bytes_q0;
+    wire        chain_in_word_last  = chain_in_last_q0;
+    wire        chain_in_word_is_cs = chain_in_is_cs_q0;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            chain_in_word_q0  <= 64'd0;
+            chain_in_word_q1  <= 64'd0;
+            chain_in_bytes_q0 <= 4'd0;
+            chain_in_bytes_q1 <= 4'd0;
+            chain_in_last_q0  <= 1'b0;
+            chain_in_last_q1  <= 1'b0;
+            chain_in_is_cs_q0 <= 1'b0;
+            chain_in_is_cs_q1 <= 1'b0;
+            chain_in_count    <= 2'd0;
+        end else if (reset_engine) begin
+            chain_in_count    <= 2'd0;
+        end else begin
+            case ({chain_in_wr_fire, chain_in_rd_fire})
+                2'b10: begin
+                    if (chain_in_count == 2'd0) begin
+                        chain_in_word_q0  <= in_word;
+                        chain_in_bytes_q0 <= in_word_bytes;
+                        chain_in_last_q0  <= in_word_last;
+                        chain_in_is_cs_q0 <= in_word_is_cs;
+                    end else begin
+                        chain_in_word_q1  <= in_word;
+                        chain_in_bytes_q1 <= in_word_bytes;
+                        chain_in_last_q1  <= in_word_last;
+                        chain_in_is_cs_q1 <= in_word_is_cs;
+                    end
+                    chain_in_count <= chain_in_count + 2'd1;
+                end
+
+                2'b01: begin
+                    if (chain_in_count == 2'd2) begin
+                        chain_in_word_q0  <= chain_in_word_q1;
+                        chain_in_bytes_q0 <= chain_in_bytes_q1;
+                        chain_in_last_q0  <= chain_in_last_q1;
+                        chain_in_is_cs_q0 <= chain_in_is_cs_q1;
+                    end
+                    chain_in_count <= chain_in_count - 2'd1;
+                end
+
+                2'b11: begin
+                    if (chain_in_count == 2'd1) begin
+                        chain_in_word_q0  <= in_word;
+                        chain_in_bytes_q0 <= in_word_bytes;
+                        chain_in_last_q0  <= in_word_last;
+                        chain_in_is_cs_q0 <= in_word_is_cs;
+                    end else begin
+                        chain_in_word_q0  <= chain_in_word_q1;
+                        chain_in_bytes_q0 <= chain_in_bytes_q1;
+                        chain_in_last_q0  <= chain_in_last_q1;
+                        chain_in_is_cs_q0 <= chain_in_is_cs_q1;
+
+                        chain_in_word_q1  <= in_word;
+                        chain_in_bytes_q1 <= in_word_bytes;
+                        chain_in_last_q1  <= in_word_last;
+                        chain_in_is_cs_q1 <= in_word_is_cs;
+                    end
+                    chain_in_count <= chain_in_count;
+                end
+
+                default: begin
+                    chain_in_count <= chain_in_count;
+                end
+            endcase
+        end
+    end
+
+    wire [63:0] xof_in_word_to_ctrl       = xof_chain_mode ? chain_in_word       : in_word;
+    wire [3:0]  xof_in_word_bytes_to_ctrl = xof_chain_mode ? chain_in_word_bytes : in_word_bytes;
+    wire        xof_in_word_last_to_ctrl  = xof_chain_mode ? chain_in_word_last  : in_word_last;
+    wire        xof_in_valid_to_ctrl      = xof_chain_mode ? chain_in_rd_valid   : xof_in_valid;
+    wire        xof_in_ready_mux          = xof_chain_mode ? chain_in_wr_ready   : xof_in_ready;
+
+    wire [63:0] cxof_in_word_to_ctrl       = cxof_chain_mode ? chain_in_word       : in_word;
+    wire [3:0]  cxof_in_word_bytes_to_ctrl = cxof_chain_mode ? chain_in_word_bytes : in_word_bytes;
+    wire        cxof_in_word_last_to_ctrl  = cxof_chain_mode ? chain_in_word_last  : in_word_last;
+    wire        cxof_in_word_is_cs_to_ctrl = cxof_chain_mode ? chain_in_word_is_cs : in_word_is_cs;
+    wire        cxof_in_valid_to_ctrl      = cxof_chain_mode ? chain_in_rd_valid   : cxof_in_valid;
+    wire        cxof_in_ready_mux          = cxof_chain_mode ? chain_in_wr_ready   : cxof_in_ready;
+
+    // Output FIFO: {owner_is_xof, block, last, byte_count}
+    reg [63:0] chain_out_block_q0;
+    reg [63:0] chain_out_block_q1;
+    reg [3:0]  chain_out_bytes_q0;
+    reg [3:0]  chain_out_bytes_q1;
+    reg        chain_out_last_q0;
+    reg        chain_out_last_q1;
+    reg        chain_out_is_xof_q0;
+    reg        chain_out_is_xof_q1;
+    reg [1:0]  chain_out_count;
+
+    wire        chain_out_src_valid = (xof_chain_mode & xof_out_valid) |
+                                      (cxof_chain_mode & cxof_out_valid);
+    wire [63:0] chain_out_src_block = xof_chain_mode ? xof_out_block : cxof_out_block;
+    wire [3:0]  chain_out_src_bytes = xof_chain_mode ? xof_out_byte_count : cxof_out_byte_count;
+    wire        chain_out_src_last  = xof_chain_mode ? xof_out_last : cxof_out_last;
+    wire        chain_out_src_is_xof = xof_chain_mode;
+
+    wire        chain_out_rd_valid = (chain_out_count != 2'd0);
+    wire        chain_out_rd_fire  = chain_out_rd_valid;
+    wire        chain_out_wr_ready = (chain_out_count != 2'd2) | chain_out_rd_fire;
+    wire        chain_out_wr_fire  = chain_out_src_valid & chain_out_wr_ready;
+
+    wire [63:0] chain_out_block      = chain_out_block_q0;
+    wire [3:0]  chain_out_byte_count = chain_out_bytes_q0;
+    wire        chain_out_last       = chain_out_last_q0;
+    wire        chain_out_is_xof     = chain_out_is_xof_q0;
+    wire        chain_out_valid      = chain_out_rd_valid;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            chain_out_block_q0  <= 64'd0;
+            chain_out_block_q1  <= 64'd0;
+            chain_out_bytes_q0  <= 4'd0;
+            chain_out_bytes_q1  <= 4'd0;
+            chain_out_last_q0   <= 1'b0;
+            chain_out_last_q1   <= 1'b0;
+            chain_out_is_xof_q0 <= 1'b0;
+            chain_out_is_xof_q1 <= 1'b0;
+            chain_out_count     <= 2'd0;
+        end else if (reset_engine) begin
+            chain_out_count <= 2'd0;
+        end else begin
+            case ({chain_out_wr_fire, chain_out_rd_fire})
+                2'b10: begin
+                    if (chain_out_count == 2'd0) begin
+                        chain_out_block_q0  <= chain_out_src_block;
+                        chain_out_bytes_q0  <= chain_out_src_bytes;
+                        chain_out_last_q0   <= chain_out_src_last;
+                        chain_out_is_xof_q0 <= chain_out_src_is_xof;
+                    end else begin
+                        chain_out_block_q1  <= chain_out_src_block;
+                        chain_out_bytes_q1  <= chain_out_src_bytes;
+                        chain_out_last_q1   <= chain_out_src_last;
+                        chain_out_is_xof_q1 <= chain_out_src_is_xof;
+                    end
+                    chain_out_count <= chain_out_count + 2'd1;
+                end
+
+                2'b01: begin
+                    if (chain_out_count == 2'd2) begin
+                        chain_out_block_q0  <= chain_out_block_q1;
+                        chain_out_bytes_q0  <= chain_out_bytes_q1;
+                        chain_out_last_q0   <= chain_out_last_q1;
+                        chain_out_is_xof_q0 <= chain_out_is_xof_q1;
+                    end
+                    chain_out_count <= chain_out_count - 2'd1;
+                end
+
+                2'b11: begin
+                    if (chain_out_count == 2'd1) begin
+                        chain_out_block_q0  <= chain_out_src_block;
+                        chain_out_bytes_q0  <= chain_out_src_bytes;
+                        chain_out_last_q0   <= chain_out_src_last;
+                        chain_out_is_xof_q0 <= chain_out_src_is_xof;
+                    end else begin
+                        chain_out_block_q0  <= chain_out_block_q1;
+                        chain_out_bytes_q0  <= chain_out_bytes_q1;
+                        chain_out_last_q0   <= chain_out_last_q1;
+                        chain_out_is_xof_q0 <= chain_out_is_xof_q1;
+
+                        chain_out_block_q1  <= chain_out_src_block;
+                        chain_out_bytes_q1  <= chain_out_src_bytes;
+                        chain_out_last_q1   <= chain_out_src_last;
+                        chain_out_is_xof_q1 <= chain_out_src_is_xof;
+                    end
+                    chain_out_count <= chain_out_count;
+                end
+
+                default: begin
+                    chain_out_count <= chain_out_count;
+                end
+            endcase
+        end
+    end
+
+    wire xof_chain_out_pending  = chain_out_valid & chain_out_is_xof;
+    wire cxof_chain_out_pending = chain_out_valid & ~chain_out_is_xof;
+
+    wire [63:0] xof_out_block_mux      = (xof_chain_mode | xof_chain_out_pending) ? chain_out_block      : xof_out_block;
+    wire        xof_out_valid_mux      = (xof_chain_mode | xof_chain_out_pending) ? chain_out_valid      : xof_out_valid;
+    wire        xof_out_last_mux       = (xof_chain_mode | xof_chain_out_pending) ? chain_out_last       : xof_out_last;
+    wire [3:0]  xof_out_byte_count_mux = (xof_chain_mode | xof_chain_out_pending) ? chain_out_byte_count : xof_out_byte_count;
+
+    wire [63:0] cxof_out_block_mux      = (cxof_chain_mode | cxof_chain_out_pending) ? chain_out_block      : cxof_out_block;
+    wire        cxof_out_valid_mux      = (cxof_chain_mode | cxof_chain_out_pending) ? chain_out_valid      : cxof_out_valid;
+    wire        cxof_out_last_mux       = (cxof_chain_mode | cxof_chain_out_pending) ? chain_out_last       : cxof_out_last;
+    wire [3:0]  cxof_out_byte_count_mux = (cxof_chain_mode | cxof_chain_out_pending) ? chain_out_byte_count : cxof_out_byte_count;
+
+    // -------------------------------------------------------------------------
     // Per-mode patch-command wires
     // -------------------------------------------------------------------------
     wire         hash_patch_valid;
@@ -425,10 +647,10 @@ module mode_controller (
         .chain_count    (chain_count),
         .chain_debug    (chain_debug),
 
-        .in_word        (in_word),
-        .in_word_bytes  (in_word_bytes),
-        .in_word_last   (in_word_last),
-        .in_word_valid  (xof_in_valid),
+        .in_word        (xof_in_word_to_ctrl),
+        .in_word_bytes  (xof_in_word_bytes_to_ctrl),
+        .in_word_last   (xof_in_word_last_to_ctrl),
+        .in_word_valid  (xof_in_valid_to_ctrl),
         .in_word_ready  (xof_in_ready),
 
         .out_block      (xof_out_block),
@@ -477,11 +699,11 @@ module mode_controller (
         .chain_count    (chain_count),
         .chain_debug    (chain_debug),
 
-        .in_word        (in_word),
-        .in_word_bytes  (in_word_bytes),
-        .in_word_last   (in_word_last),
-        .in_word_is_cs  (in_word_is_cs),
-        .in_word_valid  (cxof_in_valid),
+        .in_word        (cxof_in_word_to_ctrl),
+        .in_word_bytes  (cxof_in_word_bytes_to_ctrl),
+        .in_word_last   (cxof_in_word_last_to_ctrl),
+        .in_word_is_cs  (cxof_in_word_is_cs_to_ctrl),
+        .in_word_valid  (cxof_in_valid_to_ctrl),
         .in_word_ready  (cxof_in_ready),
 
         .out_block      (cxof_out_block),
@@ -571,9 +793,9 @@ module mode_controller (
         if (sel_hash_r) begin
             in_word_ready = hash_in_ready;
         end else if (sel_xof_r) begin
-            in_word_ready = xof_in_ready;
+            in_word_ready = xof_in_ready_mux;
         end else if (sel_cxof_r) begin
-            in_word_ready = cxof_in_ready;
+            in_word_ready = cxof_in_ready_mux;
         end else if (sel_aead_r) begin
             in_word_ready = aead_in_ready;
         end
@@ -598,14 +820,14 @@ module mode_controller (
             out_byte_count = hash_out_byte_count;
             busy           = hash_busy;
             done           = hash_done;
-        end else if (sel_xof_r) begin
+        end else if (sel_xof_r | xof_chain_out_pending) begin
             out_block      = xof_out_block;
             out_valid      = xof_out_valid;
             out_last       = xof_out_last;
             out_byte_count = xof_out_byte_count;
             busy           = xof_busy;
             done           = xof_done;
-        end else if (sel_cxof_r) begin
+        end else if (sel_cxof_r | cxof_chain_out_pending) begin
             out_block      = cxof_out_block;
             out_valid      = cxof_out_valid;
             out_last       = cxof_out_last;
