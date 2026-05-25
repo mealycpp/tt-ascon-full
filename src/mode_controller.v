@@ -1,17 +1,11 @@
 /*
  * mode_controller.v — SDMC-ASCON dispatcher (streaming I/O).
  *
- * Area/fanout surgery version:
- * - ONE shared ascon_permutation instance.
- * - Decode mode once at operation start.
- * - Use registered one-hot selects for controller routing.
- * - Avoid repeated active_mode equality decoders in every mux.
- * - No wide message/result buffers.
- *
- * Timing surgery:
- * - Register the shared permutation input mux.
- * - Breaks the long path:
- *      sel_*_r -> 320-bit perm_state mux -> ASCON permutation input/state logic.
+ * Transitional patch-fed architecture:
+ * - HASH256 uses the new stateful 64-bit patch-fed ASCON sponge core.
+ * - XOF/CXOF/AEAD remain on the legacy 320-bit permutation boundary for now.
+ * - This is a controlled migration step. Do not run GDS until all modes move
+ *   to the patch-fed core and the legacy 320-bit boundary is removed.
  */
 
 `default_nettype none
@@ -20,12 +14,10 @@ module mode_controller (
     input  wire         clk,
     input  wire         rst_n,
 
-    // Command
     input  wire [2:0]   mode_sel,
     input  wire         start,
     input  wire         reset_engine,
 
-    // Scalar metadata
     input  wire [15:0]  cs_total_bits,
     input  wire [15:0]  msg_total_bytes,
     input  wire [15:0]  out_length,
@@ -33,12 +25,10 @@ module mode_controller (
     input  wire [15:0]  chain_count,
     input  wire         chain_debug,
 
-    // AEAD-specific scalar metadata
     input  wire         is_decrypt,
     input  wire [15:0]  ad_total_bytes,
     input  wire [15:0]  data_total_bytes,
 
-    // Streaming input
     input  wire [63:0]  in_word,
     input  wire [3:0]   in_word_bytes,
     input  wire         in_word_last,
@@ -46,16 +36,13 @@ module mode_controller (
     input  wire         in_word_valid,
     output reg          in_word_ready,
 
-    // Streaming output
     output reg  [63:0]  out_block,
     output reg          out_valid,
     output reg          out_last,
     output reg  [3:0]   out_byte_count,
 
-    // AEAD auth result
     output reg          auth_ok,
 
-    // Status
     output reg          busy,
     output reg          done
 );
@@ -68,37 +55,11 @@ module mode_controller (
     localparam M_AEAD_DEC   = 3'd6;
     localparam M_XOF_CHAIN  = 3'd7;
 
-    // Registered one-hot controller selects.
     reg sel_hash_r;
     reg sel_xof_r;
     reg sel_cxof_r;
     reg sel_aead_r;
 
-    // -------------------------------------------------------------------------
-    // Shared permutation: THE ONLY physical ASCON datapath
-    // -------------------------------------------------------------------------
-    reg          perm_start;
-    reg  [3:0]   perm_rounds;
-    reg  [319:0] perm_state_in;
-
-    wire [319:0] perm_state_out;
-    wire         perm_busy;
-    wire         perm_done;
-
-    ascon_permutation u_perm (
-        .clk        (clk),
-        .rst_n      (rst_n),
-        .start      (perm_start),
-        .num_rounds (perm_rounds),
-        .state_in   (perm_state_in),
-        .state_out  (perm_state_out),
-        .busy       (perm_busy),
-        .done       (perm_done)
-    );
-
-    // -------------------------------------------------------------------------
-    // Start routing and one-hot decode
-    // -------------------------------------------------------------------------
     reg hash_start;
     reg xof_start;
     reg cxof_start;
@@ -163,20 +124,52 @@ module mode_controller (
         end
     end
 
-    // -------------------------------------------------------------------------
-    // in_word_valid gating
-    // -------------------------------------------------------------------------
     wire hash_in_valid = in_word_valid & sel_hash_r;
     wire xof_in_valid  = in_word_valid & sel_xof_r;
     wire cxof_in_valid = in_word_valid & sel_cxof_r;
     wire aead_in_valid = in_word_valid & sel_aead_r;
 
     // -------------------------------------------------------------------------
-    // Hash256 controller
+    // HASH256: new patch-fed sponge core path
     // -------------------------------------------------------------------------
-    wire         hash_perm_start;
-    wire [3:0]   hash_perm_rounds;
-    wire [319:0] hash_perm_state_in;
+    wire         hash_patch_valid;
+    wire         hash_patch_ready;
+    wire [1:0]   hash_patch_op;
+    wire [2:0]   hash_patch_lane;
+    wire [63:0]  hash_patch_data;
+
+    wire         hash_core_perm_start;
+    wire [3:0]   hash_core_perm_rounds;
+    wire         hash_core_perm_busy;
+    wire         hash_core_perm_done;
+
+    wire [63:0]  hash_core_x0;
+    wire [63:0]  hash_core_x1;
+    wire [63:0]  hash_core_x2;
+    wire [63:0]  hash_core_x3;
+    wire [63:0]  hash_core_x4;
+
+    ascon_sponge_core u_hash_core (
+        .clk          (clk),
+        .rst_n        (rst_n),
+
+        .patch_valid  (hash_patch_valid),
+        .patch_ready  (hash_patch_ready),
+        .patch_op     (hash_patch_op),
+        .patch_lane   (hash_patch_lane),
+        .patch_data   (hash_patch_data),
+
+        .perm_start   (hash_core_perm_start),
+        .perm_rounds  (hash_core_perm_rounds),
+        .perm_busy    (hash_core_perm_busy),
+        .perm_done    (hash_core_perm_done),
+
+        .x0           (hash_core_x0),
+        .x1           (hash_core_x1),
+        .x2           (hash_core_x2),
+        .x3           (hash_core_x3),
+        .x4           (hash_core_x4)
+    );
 
     wire         hash_in_ready;
     wire [63:0]  hash_out_block;
@@ -186,12 +179,11 @@ module mode_controller (
     wire         hash_busy;
     wire         hash_done;
 
-    hash_controller u_hash (
+    hash_patch_controller u_hash (
         .clk            (clk),
         .rst_n          (rst_n),
         .start          (hash_start),
         .reset_engine   (reset_engine),
-
         .msg_total_bytes(msg_total_bytes),
 
         .in_word        (in_word),
@@ -208,16 +200,46 @@ module mode_controller (
         .busy           (hash_busy),
         .done           (hash_done),
 
-        .perm_start     (hash_perm_start),
-        .perm_rounds    (hash_perm_rounds),
-        .perm_state_in  (hash_perm_state_in),
-        .perm_state_out (perm_state_out),
-        .perm_busy      (perm_busy),
-        .perm_done      (perm_done & sel_hash_r)
+        .patch_valid    (hash_patch_valid),
+        .patch_ready    (hash_patch_ready),
+        .patch_op       (hash_patch_op),
+        .patch_lane     (hash_patch_lane),
+        .patch_data     (hash_patch_data),
+
+        .perm_start     (hash_core_perm_start),
+        .perm_rounds    (hash_core_perm_rounds),
+        .perm_busy      (hash_core_perm_busy),
+        .perm_done      (hash_core_perm_done),
+
+        .core_x0        (hash_core_x0)
+    );
+
+    wire _unused_hash_core = &{hash_core_x1, hash_core_x2, hash_core_x3, hash_core_x4, 1'b0};
+
+    // -------------------------------------------------------------------------
+    // Legacy shared permutation for XOF/CXOF/AEAD only
+    // -------------------------------------------------------------------------
+    reg          legacy_perm_start;
+    reg  [3:0]   legacy_perm_rounds;
+    reg  [319:0] legacy_perm_state_in;
+
+    wire [319:0] legacy_perm_state_out;
+    wire         legacy_perm_busy;
+    wire         legacy_perm_done;
+
+    ascon_permutation u_legacy_perm (
+        .clk        (clk),
+        .rst_n      (rst_n),
+        .start      (legacy_perm_start),
+        .num_rounds (legacy_perm_rounds),
+        .state_in   (legacy_perm_state_in),
+        .state_out  (legacy_perm_state_out),
+        .busy       (legacy_perm_busy),
+        .done       (legacy_perm_done)
     );
 
     // -------------------------------------------------------------------------
-    // XOF128 controller
+    // XOF128 legacy controller
     // -------------------------------------------------------------------------
     wire         xof_perm_start;
     wire [3:0]   xof_perm_rounds;
@@ -260,13 +282,13 @@ module mode_controller (
         .perm_start     (xof_perm_start),
         .perm_rounds    (xof_perm_rounds),
         .perm_state_in  (xof_perm_state_in),
-        .perm_state_out (perm_state_out),
-        .perm_busy      (perm_busy),
-        .perm_done      (perm_done & sel_xof_r)
+        .perm_state_out (legacy_perm_state_out),
+        .perm_busy      (legacy_perm_busy),
+        .perm_done      (legacy_perm_done & sel_xof_r)
     );
 
     // -------------------------------------------------------------------------
-    // CXOF128 controller
+    // CXOF128 legacy controller
     // -------------------------------------------------------------------------
     wire         cxof_perm_start;
     wire [3:0]   cxof_perm_rounds;
@@ -311,13 +333,13 @@ module mode_controller (
         .perm_start     (cxof_perm_start),
         .perm_rounds    (cxof_perm_rounds),
         .perm_state_in  (cxof_perm_state_in),
-        .perm_state_out (perm_state_out),
-        .perm_busy      (perm_busy),
-        .perm_done      (perm_done & sel_cxof_r)
+        .perm_state_out (legacy_perm_state_out),
+        .perm_busy      (legacy_perm_busy),
+        .perm_done      (legacy_perm_done & sel_cxof_r)
     );
 
     // -------------------------------------------------------------------------
-    // AEAD128 controller
+    // AEAD128 legacy controller
     // -------------------------------------------------------------------------
     wire         aead_perm_start;
     wire [3:0]   aead_perm_rounds;
@@ -333,86 +355,82 @@ module mode_controller (
     wire         aead_done;
 
     aead_controller u_aead (
-        .clk            (clk),
-        .rst_n          (rst_n),
-        .start          (aead_start),
-        .reset_engine   (reset_engine),
+        .clk             (clk),
+        .rst_n           (rst_n),
+        .start           (aead_start),
+        .reset_engine    (reset_engine),
 
-        .is_decrypt     (is_decrypt),
-        .ad_total_bytes (ad_total_bytes),
+        .is_decrypt      (is_decrypt),
+        .ad_total_bytes  (ad_total_bytes),
         .data_total_bytes(data_total_bytes),
 
-        .in_word        (in_word),
-        .in_word_bytes  (in_word_bytes),
-        .in_word_last   (in_word_last),
-        .in_phase       (3'd0),
-        .in_word_valid  (aead_in_valid),
-        .in_word_ready  (aead_in_ready),
+        .in_word         (in_word),
+        .in_word_bytes   (in_word_bytes),
+        .in_word_last    (in_word_last),
+        .in_phase        (3'd0),
+        .in_word_valid   (aead_in_valid),
+        .in_word_ready   (aead_in_ready),
 
-        .out_block      (aead_out_block),
-        .out_valid      (aead_out_valid),
-        .out_last       (aead_out_last),
-        .out_byte_count (aead_out_byte_count),
-        .auth_ok        (aead_auth_ok),
+        .out_block       (aead_out_block),
+        .out_valid       (aead_out_valid),
+        .out_last        (aead_out_last),
+        .out_byte_count  (aead_out_byte_count),
+        .auth_ok         (aead_auth_ok),
 
-        .busy           (aead_busy),
-        .done           (aead_done),
+        .busy            (aead_busy),
+        .done            (aead_done),
 
-        .perm_start     (aead_perm_start),
-        .perm_rounds    (aead_perm_rounds),
-        .perm_state_in  (aead_perm_state_in),
-        .perm_state_out (perm_state_out),
-        .perm_busy      (perm_busy),
-        .perm_done      (perm_done & sel_aead_r)
+        .perm_start      (aead_perm_start),
+        .perm_rounds     (aead_perm_rounds),
+        .perm_state_in   (aead_perm_state_in),
+        .perm_state_out  (legacy_perm_state_out),
+        .perm_busy       (legacy_perm_busy),
+        .perm_done       (legacy_perm_done & sel_aead_r)
     );
 
     // -------------------------------------------------------------------------
-    // Registered permutation input arbiter / 1-entry input slice
+    // Legacy permutation input arbiter for non-HASH modes only
     // -------------------------------------------------------------------------
-    reg         perm_start_req;
-    reg [3:0]   perm_rounds_req;
-    reg [319:0] perm_state_in_req;
+    reg          legacy_perm_start_req;
+    reg  [3:0]   legacy_perm_rounds_req;
+    reg  [319:0] legacy_perm_state_in_req;
 
     always @(*) begin
-        perm_start_req    = 1'b0;
-        perm_rounds_req   = 4'd12;
-        perm_state_in_req = 320'd0;
+        legacy_perm_start_req    = 1'b0;
+        legacy_perm_rounds_req   = 4'd12;
+        legacy_perm_state_in_req = 320'd0;
 
-        if (sel_hash_r) begin
-            perm_start_req    = hash_perm_start;
-            perm_rounds_req   = hash_perm_rounds;
-            perm_state_in_req = hash_perm_state_in;
-        end else if (sel_xof_r) begin
-            perm_start_req    = xof_perm_start;
-            perm_rounds_req   = xof_perm_rounds;
-            perm_state_in_req = xof_perm_state_in;
+        if (sel_xof_r) begin
+            legacy_perm_start_req    = xof_perm_start;
+            legacy_perm_rounds_req   = xof_perm_rounds;
+            legacy_perm_state_in_req = xof_perm_state_in;
         end else if (sel_cxof_r) begin
-            perm_start_req    = cxof_perm_start;
-            perm_rounds_req   = cxof_perm_rounds;
-            perm_state_in_req = cxof_perm_state_in;
+            legacy_perm_start_req    = cxof_perm_start;
+            legacy_perm_rounds_req   = cxof_perm_rounds;
+            legacy_perm_state_in_req = cxof_perm_state_in;
         end else if (sel_aead_r) begin
-            perm_start_req    = aead_perm_start;
-            perm_rounds_req   = aead_perm_rounds;
-            perm_state_in_req = aead_perm_state_in;
+            legacy_perm_start_req    = aead_perm_start;
+            legacy_perm_rounds_req   = aead_perm_rounds;
+            legacy_perm_state_in_req = aead_perm_state_in;
         end
     end
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            perm_start    <= 1'b0;
-            perm_rounds   <= 4'd12;
-            perm_state_in <= 320'd0;
+            legacy_perm_start    <= 1'b0;
+            legacy_perm_rounds   <= 4'd12;
+            legacy_perm_state_in <= 320'd0;
         end else if (reset_engine) begin
-            perm_start    <= 1'b0;
-            perm_rounds   <= 4'd12;
-            perm_state_in <= 320'd0;
+            legacy_perm_start    <= 1'b0;
+            legacy_perm_rounds   <= 4'd12;
+            legacy_perm_state_in <= 320'd0;
         end else begin
-            perm_start <= 1'b0;
+            legacy_perm_start <= 1'b0;
 
-            if (perm_start_req) begin
-                perm_start    <= 1'b1;
-                perm_rounds   <= perm_rounds_req;
-                perm_state_in <= perm_state_in_req;
+            if (legacy_perm_start_req) begin
+                legacy_perm_start    <= 1'b1;
+                legacy_perm_rounds   <= legacy_perm_rounds_req;
+                legacy_perm_state_in <= legacy_perm_state_in_req;
             end
         end
     end
