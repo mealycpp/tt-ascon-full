@@ -157,7 +157,7 @@ module aead_patch_controller (
     function [12:0] ceil_words8;
         input [15:0] nbytes;
         begin
-            ceil_words8 = {1'b0, nbytes[15:3]} + ((nbytes[2:0] != 3'd0) ? 13'd1 : 13'd0);
+            ceil_words8 = nbytes[15:3] + ((nbytes[2:0] != 3'd0) ? 13'd1 : 13'd0);
         end
     endfunction
 
@@ -242,9 +242,7 @@ module aead_patch_controller (
         cfg_push_premerge ||
         (in_fire && (ingress_phase == I_AD)) ||
         (in_fire && (ingress_phase == I_TAG));
-    wire ad_push   = 1'b0;
     wire msg_push  = in_fire && (ingress_phase == I_DATA);
-    wire tag_push  = 1'b0;
 
     aead_stream_fifo #(.WIDTH(64), .DEPTH_LOG2(2)) u_cfg_fifo (
         .clk(clk), .rst_n(rst_n), .clear(fifo_clear),
@@ -1048,37 +1046,45 @@ module aead_stream_fifo #(
     output wire             empty
 );
     localparam integer DEPTH = (1 << DEPTH_LOG2);
+    localparam [DEPTH_LOG2:0] ZERO_COUNT  = {DEPTH_LOG2+1{1'b0}};
     localparam [DEPTH_LOG2:0] DEPTH_COUNT = (1 << DEPTH_LOG2);
 
     reg [WIDTH-1:0] mem [0:DEPTH-1];
-    reg [DEPTH_LOG2-1:0] rd_ptr;
-    reg [DEPTH_LOG2-1:0] wr_ptr;
-    reg [DEPTH_LOG2:0]   count;
+    reg [DEPTH_LOG2:0] count;
+    integer i;
 
-    wire do_pop  = pop  && (count != {DEPTH_LOG2+1{1'b0}});
-    wire do_push = push && (count != DEPTH_COUNT);
+    wire do_pop  = pop  && (count != ZERO_COUNT);
+    wire do_push = push && ((count != DEPTH_COUNT) || do_pop);
 
-    assign empty = (count == {DEPTH_LOG2+1{1'b0}});
+    assign empty = (count == ZERO_COUNT);
     assign full  = (count == DEPTH_COUNT);
-    assign dout  = mem[rd_ptr];
+
+    // Timing fix:
+    // The old circular FIFO used dout = mem[rd_ptr], which synthesized into
+    // a wide indexed read mux. That mux showed up in failed DPL cells as
+    // u_mc.u_aead.u_cfg_fifo.mem[0][*] cones. This shift FIFO keeps the
+    // visible output at mem[0], so the scheduler sees a stable head token
+    // without a rd_ptr-selected 64-bit mux.
+    assign dout = mem[0];
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            rd_ptr <= {DEPTH_LOG2{1'b0}};
-            wr_ptr <= {DEPTH_LOG2{1'b0}};
-            count  <= {DEPTH_LOG2+1{1'b0}};
+            count <= ZERO_COUNT;
         end else if (clear) begin
-            rd_ptr <= {DEPTH_LOG2{1'b0}};
-            wr_ptr <= {DEPTH_LOG2{1'b0}};
-            count  <= {DEPTH_LOG2+1{1'b0}};
+            count <= ZERO_COUNT;
         end else begin
-            if (do_push) begin
-                mem[wr_ptr] <= din;
-                wr_ptr      <= wr_ptr + {{(DEPTH_LOG2-1){1'b0}}, 1'b1};
+            if (do_pop) begin
+                for (i = 0; i < DEPTH-1; i = i + 1) begin
+                    mem[i] <= mem[i+1];
+                end
             end
 
-            if (do_pop) begin
-                rd_ptr <= rd_ptr + {{(DEPTH_LOG2-1){1'b0}}, 1'b1};
+            if (do_push) begin
+                if (do_pop) begin
+                    mem[count - {{DEPTH_LOG2{1'b0}}, 1'b1}] <= din;
+                end else begin
+                    mem[count[DEPTH_LOG2-1:0]] <= din;
+                end
             end
 
             case ({do_push, do_pop})
@@ -1088,7 +1094,6 @@ module aead_stream_fifo #(
             endcase
         end
     end
-
 endmodule
 
 `default_nettype wire
