@@ -1,9 +1,11 @@
 /*
  * mode_controller.v — SDMC-ASCON dispatcher (streaming I/O).
  *
- * Transitional patch-fed architecture:
- * - HASH256, XOF128, CXOF128, and AEAD128 use patch-fed ASCON sponge cores.
- * - Legacy 320-bit permutation input/output boundary is removed from mode_controller.
+ * Patch-fed architecture:
+ * - ONE shared ascon_sponge_core instance.
+ * - HASH256, XOF128, CXOF128, and AEAD128 are patch-command producers.
+ * - Controllers never build or mux a 320-bit permutation input.
+ * - The only 320-bit ASCON state exists inside ascon_sponge_core.
  */
 
 `default_nettype none
@@ -128,47 +130,135 @@ module mode_controller (
     wire aead_in_valid = in_word_valid & sel_aead_r;
 
     // -------------------------------------------------------------------------
-    // HASH256: new patch-fed sponge core path
+    // Per-mode patch-command wires
     // -------------------------------------------------------------------------
     wire         hash_patch_valid;
-    wire         hash_patch_ready;
     wire [1:0]   hash_patch_op;
     wire [2:0]   hash_patch_lane;
     wire [63:0]  hash_patch_data;
+    wire         hash_perm_start;
+    wire [3:0]   hash_perm_rounds;
 
-    wire         hash_core_perm_start;
-    wire [3:0]   hash_core_perm_rounds;
-    wire         hash_core_perm_busy;
-    wire         hash_core_perm_done;
+    wire         xof_patch_valid;
+    wire [1:0]   xof_patch_op;
+    wire [2:0]   xof_patch_lane;
+    wire [63:0]  xof_patch_data;
+    wire         xof_perm_start;
+    wire [3:0]   xof_perm_rounds;
 
-    wire [63:0]  hash_core_x0;
-    wire [63:0]  hash_core_x1;
-    wire [63:0]  hash_core_x2;
-    wire [63:0]  hash_core_x3;
-    wire [63:0]  hash_core_x4;
+    wire         cxof_patch_valid;
+    wire [1:0]   cxof_patch_op;
+    wire [2:0]   cxof_patch_lane;
+    wire [63:0]  cxof_patch_data;
+    wire         cxof_perm_start;
+    wire [3:0]   cxof_perm_rounds;
 
-    ascon_sponge_core u_hash_core (
+    wire         aead_patch_valid;
+    wire [1:0]   aead_patch_op;
+    wire [2:0]   aead_patch_lane;
+    wire [63:0]  aead_patch_data;
+    wire         aead_perm_start;
+    wire [3:0]   aead_perm_rounds;
+
+    // -------------------------------------------------------------------------
+    // Shared patch-fed ASCON sponge core
+    // -------------------------------------------------------------------------
+    reg         core_patch_valid;
+    reg [1:0]   core_patch_op;
+    reg [2:0]   core_patch_lane;
+    reg [63:0]  core_patch_data;
+
+    reg         core_perm_start;
+    reg [3:0]   core_perm_rounds;
+
+    wire        core_patch_ready;
+    wire        core_perm_busy;
+    wire        core_perm_done;
+
+    wire [63:0] core_x0;
+    wire [63:0] core_x1;
+    wire [63:0] core_x2;
+    wire [63:0] core_x3;
+    wire [63:0] core_x4;
+
+    ascon_sponge_core u_core (
         .clk          (clk),
         .rst_n        (rst_n),
 
-        .patch_valid  (hash_patch_valid),
-        .patch_ready  (hash_patch_ready),
-        .patch_op     (hash_patch_op),
-        .patch_lane   (hash_patch_lane),
-        .patch_data   (hash_patch_data),
+        .patch_valid  (core_patch_valid),
+        .patch_ready  (core_patch_ready),
+        .patch_op     (core_patch_op),
+        .patch_lane   (core_patch_lane),
+        .patch_data   (core_patch_data),
 
-        .perm_start   (hash_core_perm_start),
-        .perm_rounds  (hash_core_perm_rounds),
-        .perm_busy    (hash_core_perm_busy),
-        .perm_done    (hash_core_perm_done),
+        .perm_start   (core_perm_start),
+        .perm_rounds  (core_perm_rounds),
+        .perm_busy    (core_perm_busy),
+        .perm_done    (core_perm_done),
 
-        .x0           (hash_core_x0),
-        .x1           (hash_core_x1),
-        .x2           (hash_core_x2),
-        .x3           (hash_core_x3),
-        .x4           (hash_core_x4)
+        .x0           (core_x0),
+        .x1           (core_x1),
+        .x2           (core_x2),
+        .x3           (core_x3),
+        .x4           (core_x4)
     );
 
+    always @(*) begin
+        core_patch_valid = 1'b0;
+        core_patch_op    = 2'd0;
+        core_patch_lane  = 3'd0;
+        core_patch_data  = 64'd0;
+
+        if (sel_hash_r) begin
+            core_patch_valid = hash_patch_valid;
+            core_patch_op    = hash_patch_op;
+            core_patch_lane  = hash_patch_lane;
+            core_patch_data  = hash_patch_data;
+        end else if (sel_xof_r) begin
+            core_patch_valid = xof_patch_valid;
+            core_patch_op    = xof_patch_op;
+            core_patch_lane  = xof_patch_lane;
+            core_patch_data  = xof_patch_data;
+        end else if (sel_cxof_r) begin
+            core_patch_valid = cxof_patch_valid;
+            core_patch_op    = cxof_patch_op;
+            core_patch_lane  = cxof_patch_lane;
+            core_patch_data  = cxof_patch_data;
+        end else if (sel_aead_r) begin
+            core_patch_valid = aead_patch_valid;
+            core_patch_op    = aead_patch_op;
+            core_patch_lane  = aead_patch_lane;
+            core_patch_data  = aead_patch_data;
+        end
+    end
+
+    always @(*) begin
+        core_perm_start  = 1'b0;
+        core_perm_rounds = 4'd12;
+
+        if (sel_hash_r) begin
+            core_perm_start  = hash_perm_start;
+            core_perm_rounds = hash_perm_rounds;
+        end else if (sel_xof_r) begin
+            core_perm_start  = xof_perm_start;
+            core_perm_rounds = xof_perm_rounds;
+        end else if (sel_cxof_r) begin
+            core_perm_start  = cxof_perm_start;
+            core_perm_rounds = cxof_perm_rounds;
+        end else if (sel_aead_r) begin
+            core_perm_start  = aead_perm_start;
+            core_perm_rounds = aead_perm_rounds;
+        end
+    end
+
+    wire hash_core_done = core_perm_done & sel_hash_r;
+    wire xof_core_done  = core_perm_done & sel_xof_r;
+    wire cxof_core_done = core_perm_done & sel_cxof_r;
+    wire aead_core_done = core_perm_done & sel_aead_r;
+
+    // -------------------------------------------------------------------------
+    // HASH256 patch controller
+    // -------------------------------------------------------------------------
     wire         hash_in_ready;
     wire [63:0]  hash_out_block;
     wire         hash_out_valid;
@@ -199,69 +289,22 @@ module mode_controller (
         .done           (hash_done),
 
         .patch_valid    (hash_patch_valid),
-        .patch_ready    (hash_patch_ready),
+        .patch_ready    (core_patch_ready),
         .patch_op       (hash_patch_op),
         .patch_lane     (hash_patch_lane),
         .patch_data     (hash_patch_data),
 
-        .perm_start     (hash_core_perm_start),
-        .perm_rounds    (hash_core_perm_rounds),
-        .perm_busy      (hash_core_perm_busy),
-        .perm_done      (hash_core_perm_done),
+        .perm_start     (hash_perm_start),
+        .perm_rounds    (hash_perm_rounds),
+        .perm_busy      (core_perm_busy),
+        .perm_done      (hash_core_done),
 
-        .core_x0        (hash_core_x0)
+        .core_x0        (core_x0)
     );
 
-    wire _unused_hash_core = &{hash_core_x1, hash_core_x2, hash_core_x3, hash_core_x4, 1'b0};
-
     // -------------------------------------------------------------------------
-    // No legacy 320-bit permutation boundary remains in mode_controller.
-    // Each migrated mode currently owns a patch-fed sponge instance.
-    // Final area cleanup can collapse these into one shared patch-fed core.
+    // XOF128 patch controller
     // -------------------------------------------------------------------------
-
-    // -------------------------------------------------------------------------
-    // XOF128: new patch-fed sponge core path
-    // -------------------------------------------------------------------------
-    wire         xof_patch_valid;
-    wire         xof_patch_ready;
-    wire [1:0]   xof_patch_op;
-    wire [2:0]   xof_patch_lane;
-    wire [63:0]  xof_patch_data;
-
-    wire         xof_core_perm_start;
-    wire [3:0]   xof_core_perm_rounds;
-    wire         xof_core_perm_busy;
-    wire         xof_core_perm_done;
-
-    wire [63:0]  xof_core_x0;
-    wire [63:0]  xof_core_x1;
-    wire [63:0]  xof_core_x2;
-    wire [63:0]  xof_core_x3;
-    wire [63:0]  xof_core_x4;
-
-    ascon_sponge_core u_xof_core (
-        .clk          (clk),
-        .rst_n        (rst_n),
-
-        .patch_valid  (xof_patch_valid),
-        .patch_ready  (xof_patch_ready),
-        .patch_op     (xof_patch_op),
-        .patch_lane   (xof_patch_lane),
-        .patch_data   (xof_patch_data),
-
-        .perm_start   (xof_core_perm_start),
-        .perm_rounds  (xof_core_perm_rounds),
-        .perm_busy    (xof_core_perm_busy),
-        .perm_done    (xof_core_perm_done),
-
-        .x0           (xof_core_x0),
-        .x1           (xof_core_x1),
-        .x2           (xof_core_x2),
-        .x3           (xof_core_x3),
-        .x4           (xof_core_x4)
-    );
-
     wire         xof_in_ready;
     wire [63:0]  xof_out_block;
     wire         xof_out_valid;
@@ -297,63 +340,22 @@ module mode_controller (
         .done           (xof_done),
 
         .patch_valid    (xof_patch_valid),
-        .patch_ready    (xof_patch_ready),
+        .patch_ready    (core_patch_ready),
         .patch_op       (xof_patch_op),
         .patch_lane     (xof_patch_lane),
         .patch_data     (xof_patch_data),
 
-        .perm_start     (xof_core_perm_start),
-        .perm_rounds    (xof_core_perm_rounds),
-        .perm_busy      (xof_core_perm_busy),
-        .perm_done      (xof_core_perm_done),
+        .perm_start     (xof_perm_start),
+        .perm_rounds    (xof_perm_rounds),
+        .perm_busy      (core_perm_busy),
+        .perm_done      (xof_core_done),
 
-        .core_x0        (xof_core_x0)
+        .core_x0        (core_x0)
     );
 
-    wire _unused_xof_core = &{xof_core_x1, xof_core_x2, xof_core_x3, xof_core_x4, 1'b0};
-
     // -------------------------------------------------------------------------
-    // CXOF128: new patch-fed sponge core path
+    // CXOF128 patch controller
     // -------------------------------------------------------------------------
-    wire         cxof_patch_valid;
-    wire         cxof_patch_ready;
-    wire [1:0]   cxof_patch_op;
-    wire [2:0]   cxof_patch_lane;
-    wire [63:0]  cxof_patch_data;
-
-    wire         cxof_core_perm_start;
-    wire [3:0]   cxof_core_perm_rounds;
-    wire         cxof_core_perm_busy;
-    wire         cxof_core_perm_done;
-
-    wire [63:0]  cxof_core_x0;
-    wire [63:0]  cxof_core_x1;
-    wire [63:0]  cxof_core_x2;
-    wire [63:0]  cxof_core_x3;
-    wire [63:0]  cxof_core_x4;
-
-    ascon_sponge_core u_cxof_core (
-        .clk          (clk),
-        .rst_n        (rst_n),
-
-        .patch_valid  (cxof_patch_valid),
-        .patch_ready  (cxof_patch_ready),
-        .patch_op     (cxof_patch_op),
-        .patch_lane   (cxof_patch_lane),
-        .patch_data   (cxof_patch_data),
-
-        .perm_start   (cxof_core_perm_start),
-        .perm_rounds  (cxof_core_perm_rounds),
-        .perm_busy    (cxof_core_perm_busy),
-        .perm_done    (cxof_core_perm_done),
-
-        .x0           (cxof_core_x0),
-        .x1           (cxof_core_x1),
-        .x2           (cxof_core_x2),
-        .x3           (cxof_core_x3),
-        .x4           (cxof_core_x4)
-    );
-
     wire         cxof_in_ready;
     wire [63:0]  cxof_out_block;
     wire         cxof_out_valid;
@@ -391,63 +393,22 @@ module mode_controller (
         .done           (cxof_done),
 
         .patch_valid    (cxof_patch_valid),
-        .patch_ready    (cxof_patch_ready),
+        .patch_ready    (core_patch_ready),
         .patch_op       (cxof_patch_op),
         .patch_lane     (cxof_patch_lane),
         .patch_data     (cxof_patch_data),
 
-        .perm_start     (cxof_core_perm_start),
-        .perm_rounds    (cxof_core_perm_rounds),
-        .perm_busy      (cxof_core_perm_busy),
-        .perm_done      (cxof_core_perm_done),
+        .perm_start     (cxof_perm_start),
+        .perm_rounds    (cxof_perm_rounds),
+        .perm_busy      (core_perm_busy),
+        .perm_done      (cxof_core_done),
 
-        .core_x0        (cxof_core_x0)
+        .core_x0        (core_x0)
     );
 
-    wire _unused_cxof_core = &{cxof_core_x1, cxof_core_x2, cxof_core_x3, cxof_core_x4, 1'b0};
-
     // -------------------------------------------------------------------------
-    // AEAD128: new patch-fed sponge core path
+    // AEAD128 patch controller
     // -------------------------------------------------------------------------
-    wire         aead_patch_valid;
-    wire         aead_patch_ready;
-    wire [1:0]   aead_patch_op;
-    wire [2:0]   aead_patch_lane;
-    wire [63:0]  aead_patch_data;
-
-    wire         aead_core_perm_start;
-    wire [3:0]   aead_core_perm_rounds;
-    wire         aead_core_perm_busy;
-    wire         aead_core_perm_done;
-
-    wire [63:0]  aead_core_x0;
-    wire [63:0]  aead_core_x1;
-    wire [63:0]  aead_core_x2;
-    wire [63:0]  aead_core_x3;
-    wire [63:0]  aead_core_x4;
-
-    ascon_sponge_core u_aead_core (
-        .clk          (clk),
-        .rst_n        (rst_n),
-
-        .patch_valid  (aead_patch_valid),
-        .patch_ready  (aead_patch_ready),
-        .patch_op     (aead_patch_op),
-        .patch_lane   (aead_patch_lane),
-        .patch_data   (aead_patch_data),
-
-        .perm_start   (aead_core_perm_start),
-        .perm_rounds  (aead_core_perm_rounds),
-        .perm_busy    (aead_core_perm_busy),
-        .perm_done    (aead_core_perm_done),
-
-        .x0           (aead_core_x0),
-        .x1           (aead_core_x1),
-        .x2           (aead_core_x2),
-        .x3           (aead_core_x3),
-        .x4           (aead_core_x4)
-    );
-
     wire         aead_in_ready;
     wire [63:0]  aead_out_block;
     wire         aead_out_valid;
@@ -484,21 +445,21 @@ module mode_controller (
         .done            (aead_done),
 
         .patch_valid     (aead_patch_valid),
-        .patch_ready     (aead_patch_ready),
+        .patch_ready     (core_patch_ready),
         .patch_op        (aead_patch_op),
         .patch_lane      (aead_patch_lane),
         .patch_data      (aead_patch_data),
 
-        .perm_start      (aead_core_perm_start),
-        .perm_rounds     (aead_core_perm_rounds),
-        .perm_busy       (aead_core_perm_busy),
-        .perm_done       (aead_core_perm_done),
+        .perm_start      (aead_perm_start),
+        .perm_rounds     (aead_perm_rounds),
+        .perm_busy       (core_perm_busy),
+        .perm_done       (aead_core_done),
 
-        .core_x0         (aead_core_x0),
-        .core_x1         (aead_core_x1),
-        .core_x2         (aead_core_x2),
-        .core_x3         (aead_core_x3),
-        .core_x4         (aead_core_x4)
+        .core_x0         (core_x0),
+        .core_x1         (core_x1),
+        .core_x2         (core_x2),
+        .core_x3         (core_x3),
+        .core_x4         (core_x4)
     );
 
     // -------------------------------------------------------------------------
