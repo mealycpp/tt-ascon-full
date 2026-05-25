@@ -192,23 +192,17 @@ module uart_bridge #(
     wire       unpk_byte_valid;
     wire       unpk_byte_ready;
 
-    // Output word FIFO:
-    // mode_controller produces 64-bit words much faster than UART can drain.
-    // Buffer complete output words here before byte-unpacking to UART2.
-    localparam TXW_DEPTH = 8;
-    localparam TXW_AW    = 3;
+    // Output word skid FIFO:
+    // Keep only two complete output words before byte-unpacking.
+    // No array and no indexed 64-bit read mux.
+    reg [63:0] txw0_data;
+    reg [63:0] txw1_data;
+    reg [3:0]  txw0_count;
+    reg [3:0]  txw1_count;
+    reg [1:0]  txw_level;
 
-    reg [63:0] txw_data  [0:TXW_DEPTH-1];
-    reg [3:0]  txw_count [0:TXW_DEPTH-1];
-    reg [TXW_AW:0] txw_wr_ptr;
-    reg [TXW_AW:0] txw_rd_ptr;
-
-    wire [TXW_AW-1:0] txw_wr_idx = txw_wr_ptr[TXW_AW-1:0];
-    wire [TXW_AW-1:0] txw_rd_idx = txw_rd_ptr[TXW_AW-1:0];
-
-    wire txw_empty = (txw_wr_ptr == txw_rd_ptr);
-    wire txw_full  = (txw_wr_ptr[TXW_AW] != txw_rd_ptr[TXW_AW]) &&
-                     (txw_wr_ptr[TXW_AW-1:0] == txw_rd_ptr[TXW_AW-1:0]);
+    wire txw_empty = (txw_level == 2'd0);
+    wire txw_full  = (txw_level == 2'd2);
 
     assign sdmc_out_ready = !txw_full;
 
@@ -218,25 +212,56 @@ module uart_bridge #(
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            txw_wr_ptr <= {TXW_AW+1{1'b0}};
-            txw_rd_ptr <= {TXW_AW+1{1'b0}};
+            txw_level <= 2'd0;
         end else begin
-            if (txw_push) begin
-                txw_data[txw_wr_idx]  <= sdmc_out_block;
-                txw_count[txw_wr_idx] <= sdmc_out_byte_count;
-                txw_wr_ptr <= txw_wr_ptr + 1'b1;
-            end
+            case ({txw_push, txw_pop})
+                2'b10: begin
+                    if (txw_level == 2'd0) begin
+                        txw0_data  <= sdmc_out_block;
+                        txw0_count <= sdmc_out_byte_count;
+                        txw_level  <= 2'd1;
+                    end else begin
+                        txw1_data  <= sdmc_out_block;
+                        txw1_count <= sdmc_out_byte_count;
+                        txw_level  <= 2'd2;
+                    end
+                end
 
-            if (txw_pop) begin
-                txw_rd_ptr <= txw_rd_ptr + 1'b1;
-            end
+                2'b01: begin
+                    if (txw_level == 2'd2) begin
+                        txw0_data  <= txw1_data;
+                        txw0_count <= txw1_count;
+                        txw_level  <= 2'd1;
+                    end else begin
+                        txw_level  <= 2'd0;
+                    end
+                end
+
+                2'b11: begin
+                    if (txw_level == 2'd1) begin
+                        txw0_data  <= sdmc_out_block;
+                        txw0_count <= sdmc_out_byte_count;
+                        txw_level  <= 2'd1;
+                    end else begin
+                        txw0_data  <= txw1_data;
+                        txw0_count <= txw1_count;
+                        txw1_data  <= sdmc_out_block;
+                        txw1_count <= sdmc_out_byte_count;
+                        txw_level  <= 2'd2;
+                    end
+                end
+
+                default: begin
+                    txw_level <= txw_level;
+                end
+            endcase
         end
     end
 
     word_to_byte_unpacker u_unpk (
         .clk(clk), .rst_n(rst_n),
-        .in_word(txw_data[txw_rd_idx]),
-        .in_word_bytes(txw_count[txw_rd_idx]),
+        .in_word(txw0_data),
+        .in_word_bytes(txw0_count),
         .in_word_valid(!txw_empty),
         .in_word_ready(txw_unpk_ready),
         .out_byte(unpk_byte),
