@@ -411,72 +411,123 @@ module mode_controller (
     wire [3:0]   chain_bus_perm_rounds = cxof_perm_rounds;
 
     // -------------------------------------------------------------------------
-    // AEAD command timing slice
-    //
-    // This is a 1-entry skid/register slice between the large AEAD controller
-    // state decode and the shared sponge command bus. It breaks the long path:
-    //   u_aead case/proc_rom rdmux -> patch/op/lane/data -> shared core bus
     // -------------------------------------------------------------------------
-    reg         aead_slice_valid;
-    reg [1:0]   aead_slice_op;
-    reg [2:0]   aead_slice_lane;
-    reg [63:0]  aead_slice_data;
+    // AEAD patch-command FIFO
+    //
+    // Real 2-entry timing FIFO between the large AEAD controller decode cloud
+    // and the shared sponge patch bus. This fully decouples AEAD patch_ready
+    // from core_patch_ready except through registered FIFO occupancy.
+    // -------------------------------------------------------------------------
+    reg         aead_fifo_valid_q0;
+    reg         aead_fifo_valid_q1;
+    reg [1:0]   aead_fifo_op_q0;
+    reg [1:0]   aead_fifo_op_q1;
+    reg [2:0]   aead_fifo_lane_q0;
+    reg [2:0]   aead_fifo_lane_q1;
+    reg [63:0]  aead_fifo_data_q0;
+    reg [63:0]  aead_fifo_data_q1;
+    reg [1:0]   aead_fifo_count;
+
+    wire        aead_patch_fifo_valid   = aead_fifo_valid_q0;
+    wire        aead_patch_fifo_ready   = (aead_fifo_count != 2'd2);
+    wire        aead_patch_fifo_wr_fire = aead_bus_sel & aead_patch_valid & aead_patch_fifo_ready;
+    wire        aead_patch_fifo_rd_fire = aead_bus_sel & aead_patch_fifo_valid & core_patch_ready;
 
     reg         aead_perm_start_q;
     reg [3:0]   aead_perm_rounds_q;
 
-    wire        aead_slice_out_fire = aead_bus_sel & aead_slice_valid & core_patch_ready;
-    wire        aead_slice_ready    = ~aead_slice_valid | aead_slice_out_fire;
-    wire        aead_slice_wr_fire  = aead_bus_sel & aead_patch_valid & aead_slice_ready;
+    // Preserve patch-before-permute ordering.
+    wire        aead_perm_busy_to_ctrl = core_perm_busy | aead_patch_fifo_valid | aead_perm_start_q;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            aead_slice_valid  <= 1'b0;
-            aead_slice_op     <= 2'd0;
-            aead_slice_lane   <= 3'd0;
-            aead_slice_data   <= 64'd0;
-            aead_perm_start_q <= 1'b0;
+            aead_fifo_valid_q0 <= 1'b0;
+            aead_fifo_valid_q1 <= 1'b0;
+            aead_fifo_op_q0    <= 2'd0;
+            aead_fifo_op_q1    <= 2'd0;
+            aead_fifo_lane_q0  <= 3'd0;
+            aead_fifo_lane_q1  <= 3'd0;
+            aead_fifo_data_q0  <= 64'd0;
+            aead_fifo_data_q1  <= 64'd0;
+            aead_fifo_count    <= 2'd0;
+            aead_perm_start_q  <= 1'b0;
             aead_perm_rounds_q <= 4'd12;
         end else if (reset_engine || !aead_bus_sel) begin
-            aead_slice_valid  <= 1'b0;
-            aead_perm_start_q <= 1'b0;
+            aead_fifo_valid_q0 <= 1'b0;
+            aead_fifo_valid_q1 <= 1'b0;
+            aead_fifo_count    <= 2'd0;
+            aead_perm_start_q  <= 1'b0;
             aead_perm_rounds_q <= 4'd12;
         end else begin
-            aead_perm_start_q <= aead_perm_start;
-            if (aead_perm_start) begin
+            aead_perm_start_q <= 1'b0;
+
+            if (aead_perm_start && !core_perm_busy && !aead_patch_fifo_valid) begin
+                aead_perm_start_q  <= 1'b1;
                 aead_perm_rounds_q <= aead_perm_rounds;
             end
 
-            case ({aead_slice_wr_fire, aead_slice_out_fire})
+            case ({aead_patch_fifo_wr_fire, aead_patch_fifo_rd_fire})
                 2'b10: begin
-                    aead_slice_valid <= 1'b1;
-                    aead_slice_op    <= aead_patch_op;
-                    aead_slice_lane  <= aead_patch_lane;
-                    aead_slice_data  <= aead_patch_data;
+                    if (aead_fifo_count == 2'd0) begin
+                        aead_fifo_valid_q0 <= 1'b1;
+                        aead_fifo_op_q0    <= aead_patch_op;
+                        aead_fifo_lane_q0  <= aead_patch_lane;
+                        aead_fifo_data_q0  <= aead_patch_data;
+                    end else begin
+                        aead_fifo_valid_q1 <= 1'b1;
+                        aead_fifo_op_q1    <= aead_patch_op;
+                        aead_fifo_lane_q1  <= aead_patch_lane;
+                        aead_fifo_data_q1  <= aead_patch_data;
+                    end
+                    aead_fifo_count <= aead_fifo_count + 2'd1;
                 end
 
                 2'b01: begin
-                    aead_slice_valid <= 1'b0;
+                    if (aead_fifo_count == 2'd2) begin
+                        aead_fifo_valid_q0 <= aead_fifo_valid_q1;
+                        aead_fifo_op_q0    <= aead_fifo_op_q1;
+                        aead_fifo_lane_q0  <= aead_fifo_lane_q1;
+                        aead_fifo_data_q0  <= aead_fifo_data_q1;
+                        aead_fifo_valid_q1 <= 1'b0;
+                    end else begin
+                        aead_fifo_valid_q0 <= 1'b0;
+                        aead_fifo_valid_q1 <= 1'b0;
+                    end
+                    aead_fifo_count <= aead_fifo_count - 2'd1;
                 end
 
                 2'b11: begin
-                    aead_slice_valid <= 1'b1;
-                    aead_slice_op    <= aead_patch_op;
-                    aead_slice_lane  <= aead_patch_lane;
-                    aead_slice_data  <= aead_patch_data;
+                    if (aead_fifo_count == 2'd1) begin
+                        aead_fifo_valid_q0 <= 1'b1;
+                        aead_fifo_op_q0    <= aead_patch_op;
+                        aead_fifo_lane_q0  <= aead_patch_lane;
+                        aead_fifo_data_q0  <= aead_patch_data;
+                        aead_fifo_valid_q1 <= 1'b0;
+                    end else begin
+                        aead_fifo_valid_q0 <= aead_fifo_valid_q1;
+                        aead_fifo_op_q0    <= aead_fifo_op_q1;
+                        aead_fifo_lane_q0  <= aead_fifo_lane_q1;
+                        aead_fifo_data_q0  <= aead_fifo_data_q1;
+
+                        aead_fifo_valid_q1 <= 1'b1;
+                        aead_fifo_op_q1    <= aead_patch_op;
+                        aead_fifo_lane_q1  <= aead_patch_lane;
+                        aead_fifo_data_q1  <= aead_patch_data;
+                    end
+                    aead_fifo_count <= aead_fifo_count;
                 end
 
                 default: begin
-                    aead_slice_valid <= aead_slice_valid;
+                    aead_fifo_count <= aead_fifo_count;
                 end
             endcase
         end
     end
 
-    wire         aead_bus_patch_valid = aead_slice_valid;
-    wire [1:0]   aead_bus_patch_op    = aead_slice_op;
-    wire [2:0]   aead_bus_patch_lane  = aead_slice_lane;
-    wire [63:0]  aead_bus_patch_data  = aead_slice_data;
+    wire         aead_bus_patch_valid = aead_patch_fifo_valid;
+    wire [1:0]   aead_bus_patch_op    = aead_fifo_op_q0;
+    wire [2:0]   aead_bus_patch_lane  = aead_fifo_lane_q0;
+    wire [63:0]  aead_bus_patch_data  = aead_fifo_data_q0;
     wire         aead_bus_perm_start  = aead_perm_start_q;
     wire [3:0]   aead_bus_perm_rounds = aead_perm_rounds_q;
 
@@ -830,14 +881,14 @@ module mode_controller (
         .done            (aead_done),
 
         .patch_valid     (aead_patch_valid),
-        .patch_ready     (aead_slice_ready),
+        .patch_ready     (aead_patch_fifo_ready),
         .patch_op        (aead_patch_op),
         .patch_lane      (aead_patch_lane),
         .patch_data      (aead_patch_data),
 
         .perm_start      (aead_perm_start),
         .perm_rounds     (aead_perm_rounds),
-        .perm_busy       (aead_perm_busy_local),
+        .perm_busy       (aead_perm_busy_to_ctrl),
         .perm_done       (aead_core_done),
 
         .core_x0         (aead_bus_x0),
