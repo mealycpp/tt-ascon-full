@@ -5,6 +5,10 @@
  *   - Only control registers are reset.
  *   - Data registers are not reset; they are overwritten before use.
  *   - flush_ready is handshake-safe and accepts no-op flushes.
+ *
+ * Correctness surgery:
+ *   - Partial flush zeroes unused upper bytes.
+ *   - Prevents stale accumulator bytes from leaking into out_word.
  */
 `default_nettype none
 
@@ -34,6 +38,23 @@ module byte_to_word_packer (
     assign in_byte_ready = !out_word_valid && !flush;
     assign pending_bytes = {1'b0, byte_idx};
 
+    function [63:0] partial_word;
+        input [63:0] word;
+        input [2:0]  count;
+        begin
+            case (count)
+                3'd0: partial_word = 64'd0;
+                3'd1: partial_word = {56'd0, word[7:0]};
+                3'd2: partial_word = {48'd0, word[15:0]};
+                3'd3: partial_word = {40'd0, word[23:0]};
+                3'd4: partial_word = {32'd0, word[31:0]};
+                3'd5: partial_word = {24'd0, word[39:0]};
+                3'd6: partial_word = {16'd0, word[47:0]};
+                3'd7: partial_word = {8'd0,  word[55:0]};
+            endcase
+        end
+    endfunction
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             byte_idx       <= 3'd0;
@@ -48,7 +69,7 @@ module byte_to_word_packer (
 
             if (flush && flush_ready) begin
                 if (byte_idx != 3'd0) begin
-                    out_word       <= accumulator;
+                    out_word       <= partial_word(accumulator, byte_idx);
                     out_word_bytes <= {1'b0, byte_idx};
                     out_word_valid <= 1'b1;
                 end

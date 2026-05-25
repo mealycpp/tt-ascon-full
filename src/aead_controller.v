@@ -45,7 +45,7 @@ module aead_controller (
 
     output reg          perm_start,
     output reg  [3:0]   perm_rounds,
-    output wire [319:0] perm_state_in,
+    output reg  [319:0] perm_state_in,
     input  wire [319:0] perm_state_out,
     input  wire         perm_busy,
     input  wire         perm_done
@@ -141,34 +141,11 @@ module aead_controller (
     reg [63:0]  w1_buf;
     reg [3:0]   w1_real;
 
-    // Small selector for next permutation input. Replaces 320-bit perm_state_in FFs.
-    localparam PIN_INIT      = 3'd0;
-    localparam PIN_AD        = 3'd1;
-    localparam PIN_DATA_ENC  = 3'd2;
-    localparam PIN_DATA_DEC  = 3'd3;
-    localparam PIN_FINAL     = 3'd4;
-
-    reg [2:0] perm_in_sel;
+    // Registered permutation input.
+    // This removes the always-live 320-bit mux that made synthesis stall.
     reg [63:0] perm_ad_w1;
     reg [63:0] perm_data_w0;
     reg [63:0] perm_data_w1;
-
-    assign perm_state_in =
-        (perm_in_sel == PIN_INIT) ? {perm_data_w1, nonce_lo_tmp, key_hi, key_lo, AEAD_IV} :
-        (perm_in_sel == PIN_AD) ? {aead_state[319:128],
-                                   aead_state[127:64] ^ perm_ad_w1,
-                                   aead_state[63:0]   ^ w0_buf} :
-        (perm_in_sel == PIN_DATA_DEC) ? {aead_state[319:128],
-                                         perm_data_w1,
-                                         perm_data_w0} :
-        (perm_in_sel == PIN_DATA_ENC) ? {aead_state[319:128],
-                                         aead_state[127:64] ^ perm_data_w1,
-                                         aead_state[63:0]   ^ perm_data_w0} :
-        (perm_in_sel == PIN_FINAL) ? {aead_state[319:256],
-                                      aead_state[255:192] ^ key_hi,
-                                      aead_state[191:128] ^ key_lo,
-                                      aead_state[127:0]} :
-                                     320'd0;
 
 
     always @(posedge clk or negedge rst_n) begin
@@ -192,6 +169,7 @@ module aead_controller (
             done             <= 1'b0;
             perm_start       <= 1'b0;
             perm_rounds      <= 4'd12;
+            perm_state_in    <= 320'd0;
         end else if (reset_engine) begin
             state         <= S_IDLE;
             busy          <= 1'b0;
@@ -253,7 +231,6 @@ module aead_controller (
                 S_NONCE_PULL_HI: begin
                     in_word_ready <= 1'b1;
                     if (in_word_valid && in_word_ready) begin
-                        perm_in_sel  <= PIN_INIT;
                         perm_data_w1 <= in_word;
                         in_word_ready <= 1'b0;
                         state <= S_INIT_KICK;
@@ -261,9 +238,10 @@ module aead_controller (
                 end
 
                 S_INIT_KICK: begin
-                    perm_rounds <= 4'd12;
-                    perm_start  <= 1'b1;
-                    state       <= S_INIT_WAIT;
+                    perm_state_in <= {perm_data_w1, nonce_lo_tmp, key_hi, key_lo, AEAD_IV};
+                    perm_rounds   <= 4'd12;
+                    perm_start    <= 1'b1;
+                    state         <= S_INIT_WAIT;
                 end
                 S_INIT_WAIT: begin
                     if (perm_done) begin
@@ -323,7 +301,6 @@ module aead_controller (
                             w1_real       <= 4'd8;
                             ad_bytes_left <= ad_bytes_left - 16'd8;
                             in_word_ready <= 1'b0;
-                            perm_in_sel <= PIN_AD;
                             perm_ad_w1  <= in_word;
                             state <= S_AD_ABSORB;
                         end
@@ -336,7 +313,6 @@ module aead_controller (
                             ad_bytes_left <= 16'd0;
                             ad_pad_done   <= 1'b1;
                             in_word_ready <= 1'b0;
-                            perm_in_sel <= PIN_AD;
                             perm_ad_w1  <= ((in_word & mask_lo(ad_bytes_left[3:0]))
                                             | pad_word(ad_bytes_left[3:0]));
                             state <= S_AD_ABSORB;
@@ -346,12 +322,10 @@ module aead_controller (
                             w1_buf      <= pad_word(4'd0);
                             w1_real     <= 4'd0;
                             ad_pad_done <= 1'b1;
-                            perm_in_sel <= PIN_AD;
                             perm_ad_w1  <= pad_word(4'd0);
                         end else begin
                             w1_buf  <= 64'd0;
                             w1_real <= 4'd0;
-                            perm_in_sel <= PIN_AD;
                             perm_ad_w1  <= 64'd0;
                         end
                         state <= S_AD_ABSORB;
@@ -359,9 +333,12 @@ module aead_controller (
                 end
 
                 S_AD_ABSORB: begin
-                    perm_rounds <= 4'd8;
-                    perm_start  <= 1'b1;
-                    state       <= S_AD_WAIT;
+                    perm_state_in <= {aead_state[319:128],
+                                      aead_state[127:64] ^ perm_ad_w1,
+                                      aead_state[63:0]   ^ w0_buf};
+                    perm_rounds   <= 4'd8;
+                    perm_start    <= 1'b1;
+                    state         <= S_AD_WAIT;
                 end
                 S_AD_WAIT: begin
                     if (perm_done) begin
@@ -494,11 +471,9 @@ module aead_controller (
                     end else begin
                         // Not last: build perm_state_in for p[8]
                         if (is_decrypt_r) begin
-                            perm_in_sel   <= PIN_DATA_DEC;
                             perm_data_w1  <= w1_buf;
                             perm_data_w0  <= w0_buf;
                         end else begin
-                            perm_in_sel   <= PIN_DATA_ENC;
                             perm_data_w1  <= w1_buf;
                             perm_data_w0  <= w0_buf;
                         end
@@ -507,6 +482,15 @@ module aead_controller (
                 end
 
                 S_DATA_ABSORB: begin
+                    if (is_decrypt_r) begin
+                        perm_state_in <= {aead_state[319:128],
+                                          perm_data_w1,
+                                          perm_data_w0};
+                    end else begin
+                        perm_state_in <= {aead_state[319:128],
+                                          aead_state[127:64] ^ perm_data_w1,
+                                          aead_state[63:0]   ^ perm_data_w0};
+                    end
                     perm_rounds <= 4'd8;
                     perm_start  <= 1'b1;
                     state       <= S_DATA_WAIT;
@@ -520,7 +504,10 @@ module aead_controller (
                 end
 
                 S_FINAL_KICK: begin
-                    perm_in_sel <= PIN_FINAL;
+                    perm_state_in <= {aead_state[319:256],
+                                      aead_state[255:192] ^ key_hi,
+                                      aead_state[191:128] ^ key_lo,
+                                      aead_state[127:0]};
                     perm_rounds <= 4'd12;
                     perm_start  <= 1'b1;
                     state       <= S_FINAL_WAIT;
