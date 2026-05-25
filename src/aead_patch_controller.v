@@ -207,9 +207,9 @@ module aead_patch_controller (
     wire [63:0] cfg_dout;
     reg  cfg_pop;
 
-    wire ad_full;
-    wire ad_empty;
-    wire [63:0] ad_dout;
+    wire ad_full  = cfg_full;
+    wire ad_empty = cfg_empty;
+    wire [63:0] ad_dout = cfg_dout;
     reg  ad_pop;
 
     wire msg_full;
@@ -217,10 +217,12 @@ module aead_patch_controller (
     wire [63:0] msg_dout;
     reg  msg_pop;
 
-    wire tag_full;
-    wire tag_empty;
-    wire [63:0] tag_dout;
+    wire tag_full  = cfg_full;
+    wire tag_empty = cfg_empty;
+    wire [63:0] tag_dout = cfg_dout;
     reg  tag_pop;
+
+    wire cfg_stream_pop = cfg_pop | ad_pop | tag_pop;
 
     wire out_fifo_full;
     wire out_fifo_empty;
@@ -231,41 +233,34 @@ module aead_patch_controller (
 
     wire in_fire = in_word_valid & in_word_ready;
 
-    wire cfg_push =
+    wire cfg_push_premerge =
         in_fire && ((ingress_phase == I_KEY_LO)   ||
                     (ingress_phase == I_KEY_HI)   ||
                     (ingress_phase == I_NONCE_LO) ||
                     (ingress_phase == I_NONCE_HI));
-
-    wire ad_push   = in_fire && (ingress_phase == I_AD);
+    wire cfg_push =
+        cfg_push_premerge ||
+        (in_fire && (ingress_phase == I_AD)) ||
+        (in_fire && (ingress_phase == I_TAG));
+    wire ad_push   = 1'b0;
     wire msg_push  = in_fire && (ingress_phase == I_DATA);
-    wire tag_push  = in_fire && (ingress_phase == I_TAG);
+    wire tag_push  = 1'b0;
 
     aead_stream_fifo #(.WIDTH(64), .DEPTH_LOG2(2)) u_cfg_fifo (
         .clk(clk), .rst_n(rst_n), .clear(fifo_clear),
-        .push(cfg_push), .pop(cfg_pop), .din(in_word), .dout(cfg_dout),
+        .push(cfg_push), .pop(cfg_stream_pop), .din(in_word), .dout(cfg_dout),
         .full(cfg_full), .empty(cfg_empty)
     );
 
-    aead_stream_fifo #(.WIDTH(64), .DEPTH_LOG2(2)) u_ad_fifo (
-        .clk(clk), .rst_n(rst_n), .clear(fifo_clear),
-        .push(ad_push), .pop(ad_pop), .din(in_word), .dout(ad_dout),
-        .full(ad_full), .empty(ad_empty)
-    );
 
-    aead_stream_fifo #(.WIDTH(64), .DEPTH_LOG2(2)) u_msg_fifo (
+    aead_stream_fifo #(.WIDTH(64), .DEPTH_LOG2(1)) u_msg_fifo (
         .clk(clk), .rst_n(rst_n), .clear(fifo_clear),
         .push(msg_push), .pop(msg_pop), .din(in_word), .dout(msg_dout),
         .full(msg_full), .empty(msg_empty)
     );
 
-    aead_stream_fifo #(.WIDTH(64), .DEPTH_LOG2(1)) u_tag_fifo (
-        .clk(clk), .rst_n(rst_n), .clear(fifo_clear),
-        .push(tag_push), .pop(tag_pop), .din(in_word), .dout(tag_dout),
-        .full(tag_full), .empty(tag_empty)
-    );
 
-    aead_stream_fifo #(.WIDTH(69), .DEPTH_LOG2(2)) u_out_fifo (
+    aead_stream_fifo #(.WIDTH(69), .DEPTH_LOG2(1)) u_out_fifo (
         .clk(clk), .rst_n(rst_n), .clear(fifo_clear),
         .push(out_fifo_push), .pop(out_fifo_pop), .din(out_fifo_din), .dout(out_fifo_dout),
         .full(out_fifo_full), .empty(out_fifo_empty)
