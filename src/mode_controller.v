@@ -2,7 +2,7 @@
  * mode_controller.v — SDMC-ASCON dispatcher (streaming I/O).
  *
  * Transitional patch-fed architecture:
- * - HASH256 uses the new stateful 64-bit patch-fed ASCON sponge core.
+ * - HASH256 and XOF128 use the new stateful 64-bit patch-fed ASCON sponge core.
  * - XOF/CXOF/AEAD remain on the legacy 320-bit permutation boundary for now.
  * - This is a controlled migration step. Do not run GDS until all modes move
  *   to the patch-fed core and the legacy 320-bit boundary is removed.
@@ -239,11 +239,46 @@ module mode_controller (
     );
 
     // -------------------------------------------------------------------------
-    // XOF128 legacy controller
+    // XOF128: new patch-fed sponge core path
     // -------------------------------------------------------------------------
-    wire         xof_perm_start;
-    wire [3:0]   xof_perm_rounds;
-    wire [319:0] xof_perm_state_in;
+    wire         xof_patch_valid;
+    wire         xof_patch_ready;
+    wire [1:0]   xof_patch_op;
+    wire [2:0]   xof_patch_lane;
+    wire [63:0]  xof_patch_data;
+
+    wire         xof_core_perm_start;
+    wire [3:0]   xof_core_perm_rounds;
+    wire         xof_core_perm_busy;
+    wire         xof_core_perm_done;
+
+    wire [63:0]  xof_core_x0;
+    wire [63:0]  xof_core_x1;
+    wire [63:0]  xof_core_x2;
+    wire [63:0]  xof_core_x3;
+    wire [63:0]  xof_core_x4;
+
+    ascon_sponge_core u_xof_core (
+        .clk          (clk),
+        .rst_n        (rst_n),
+
+        .patch_valid  (xof_patch_valid),
+        .patch_ready  (xof_patch_ready),
+        .patch_op     (xof_patch_op),
+        .patch_lane   (xof_patch_lane),
+        .patch_data   (xof_patch_data),
+
+        .perm_start   (xof_core_perm_start),
+        .perm_rounds  (xof_core_perm_rounds),
+        .perm_busy    (xof_core_perm_busy),
+        .perm_done    (xof_core_perm_done),
+
+        .x0           (xof_core_x0),
+        .x1           (xof_core_x1),
+        .x2           (xof_core_x2),
+        .x3           (xof_core_x3),
+        .x4           (xof_core_x4)
+    );
 
     wire         xof_in_ready;
     wire [63:0]  xof_out_block;
@@ -253,7 +288,7 @@ module mode_controller (
     wire         xof_busy;
     wire         xof_done;
 
-    xof_controller u_xof (
+    xof_patch_controller u_xof (
         .clk            (clk),
         .rst_n          (rst_n),
         .start          (xof_start),
@@ -279,13 +314,21 @@ module mode_controller (
         .busy           (xof_busy),
         .done           (xof_done),
 
-        .perm_start     (xof_perm_start),
-        .perm_rounds    (xof_perm_rounds),
-        .perm_state_in  (xof_perm_state_in),
-        .perm_state_out (legacy_perm_state_out),
-        .perm_busy      (legacy_perm_busy),
-        .perm_done      (legacy_perm_done & sel_xof_r)
+        .patch_valid    (xof_patch_valid),
+        .patch_ready    (xof_patch_ready),
+        .patch_op       (xof_patch_op),
+        .patch_lane     (xof_patch_lane),
+        .patch_data     (xof_patch_data),
+
+        .perm_start     (xof_core_perm_start),
+        .perm_rounds    (xof_core_perm_rounds),
+        .perm_busy      (xof_core_perm_busy),
+        .perm_done      (xof_core_perm_done),
+
+        .core_x0        (xof_core_x0)
     );
+
+    wire _unused_xof_core = &{xof_core_x1, xof_core_x2, xof_core_x3, xof_core_x4, 1'b0};
 
     // -------------------------------------------------------------------------
     // CXOF128 legacy controller
@@ -400,11 +443,7 @@ module mode_controller (
         legacy_perm_rounds_req   = 4'd12;
         legacy_perm_state_in_req = 320'd0;
 
-        if (sel_xof_r) begin
-            legacy_perm_start_req    = xof_perm_start;
-            legacy_perm_rounds_req   = xof_perm_rounds;
-            legacy_perm_state_in_req = xof_perm_state_in;
-        end else if (sel_cxof_r) begin
+        if (sel_cxof_r) begin
             legacy_perm_start_req    = cxof_perm_start;
             legacy_perm_rounds_req   = cxof_perm_rounds;
             legacy_perm_state_in_req = cxof_perm_state_in;
