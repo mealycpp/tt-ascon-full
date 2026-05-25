@@ -152,6 +152,12 @@ module aead_patch_controller (
     reg [63:0]  rb_x3;
     reg [63:0]  rb_x4;
 
+    // Registered data patch tokens. These remove the live ENC/DEC 64-bit
+    // mux from the shared patch bus during DATA_PATCH_X0/X1.
+    reg [1:0]   data_patch_op_q;
+    reg [63:0]  data_patch_x0_q;
+    reg [63:0]  data_patch_x1_q;
+
     wire _unused = &{in_phase, in_word_last, in_word_bytes, rb_x2, core_x2, 1'b0};
 
     function [12:0] ceil_words8;
@@ -244,21 +250,21 @@ module aead_patch_controller (
         (in_fire && (ingress_phase == I_TAG));
     wire msg_push  = in_fire && (ingress_phase == I_DATA);
 
-    aead_stream_fifo #(.WIDTH(64), .DEPTH_LOG2(2)) u_cfg_fifo (
+    aead_stream_fifo #(.WIDTH(64)) u_cfg_fifo (
         .clk(clk), .rst_n(rst_n), .clear(fifo_clear),
         .push(cfg_push), .pop(cfg_stream_pop), .din(in_word), .dout(cfg_dout),
         .full(cfg_full), .empty(cfg_empty)
     );
 
 
-    aead_stream_fifo #(.WIDTH(64), .DEPTH_LOG2(1)) u_msg_fifo (
+    aead_stream_fifo #(.WIDTH(64)) u_msg_fifo (
         .clk(clk), .rst_n(rst_n), .clear(fifo_clear),
         .push(msg_push), .pop(msg_pop), .din(in_word), .dout(msg_dout),
         .full(msg_full), .empty(msg_empty)
     );
 
 
-    aead_stream_fifo #(.WIDTH(69), .DEPTH_LOG2(1)) u_out_fifo (
+    aead_stream_fifo #(.WIDTH(69)) u_out_fifo (
         .clk(clk), .rst_n(rst_n), .clear(fifo_clear),
         .push(out_fifo_push), .pop(out_fifo_pop), .din(out_fifo_din), .dout(out_fifo_dout),
         .full(out_fifo_full), .empty(out_fifo_empty)
@@ -473,26 +479,16 @@ module aead_patch_controller (
 
             S_DATA_PATCH_X0: begin
                 patch_valid = 1'b1;
+                patch_op    = data_patch_op_q;
                 patch_lane  = LANE_X0;
-                if (is_decrypt_r) begin
-                    patch_op   = PATCH_LOAD;
-                    patch_data = (data_blocks_left == 12'd1) ? dec_last_x0 : w0_buf;
-                end else begin
-                    patch_op   = PATCH_XOR;
-                    patch_data = w0_buf;
-                end
+                patch_data  = data_patch_x0_q;
             end
 
             S_DATA_PATCH_X1: begin
                 patch_valid = 1'b1;
+                patch_op    = data_patch_op_q;
                 patch_lane  = LANE_X1;
-                if (is_decrypt_r) begin
-                    patch_op   = PATCH_LOAD;
-                    patch_data = (data_blocks_left == 12'd1) ? dec_last_x1 : w1_buf;
-                end else begin
-                    patch_op   = PATCH_XOR;
-                    patch_data = w1_buf;
-                end
+                patch_data  = data_patch_x1_q;
             end
 
             S_DATA_PERM: begin
@@ -578,6 +574,7 @@ module aead_patch_controller (
             rb_x2                 <= 64'd0;
             rb_x3                 <= 64'd0;
             rb_x4                 <= 64'd0;
+            data_patch_op_q       <= PATCH_XOR;
 
             auth_ok               <= 1'b0;
             busy                  <= 1'b0;
@@ -611,6 +608,7 @@ module aead_patch_controller (
             rb_x2                 <= 64'd0;
             rb_x3                 <= 64'd0;
             rb_x4                 <= 64'd0;
+            data_patch_op_q       <= PATCH_XOR;
 
             auth_ok               <= 1'b0;
             busy                  <= 1'b0;
@@ -944,8 +942,26 @@ module aead_patch_controller (
 
                     S_DATA_EMIT_W1: begin
                         if (w1_real == 4'd0) begin
+                            if (is_decrypt_r) begin
+                                data_patch_op_q <= PATCH_LOAD;
+                                data_patch_x0_q <= (data_blocks_left == 12'd1) ? dec_last_x0 : w0_buf;
+                                data_patch_x1_q <= (data_blocks_left == 12'd1) ? dec_last_x1 : w1_buf;
+                            end else begin
+                                data_patch_op_q <= PATCH_XOR;
+                                data_patch_x0_q <= w0_buf;
+                                data_patch_x1_q <= w1_buf;
+                            end
                             state <= S_DATA_PATCH_X0;
                         end else if (!out_fifo_full) begin
+                            if (is_decrypt_r) begin
+                                data_patch_op_q <= PATCH_LOAD;
+                                data_patch_x0_q <= (data_blocks_left == 12'd1) ? dec_last_x0 : w0_buf;
+                                data_patch_x1_q <= (data_blocks_left == 12'd1) ? dec_last_x1 : w1_buf;
+                            end else begin
+                                data_patch_op_q <= PATCH_XOR;
+                                data_patch_x0_q <= w0_buf;
+                                data_patch_x1_q <= w1_buf;
+                            end
                             state <= S_DATA_PATCH_X0;
                         end
                     end
@@ -1032,8 +1048,7 @@ endmodule
 
 
 module aead_stream_fifo #(
-    parameter WIDTH = 64,
-    parameter DEPTH_LOG2 = 2
+    parameter WIDTH = 64
 ) (
     input  wire             clk,
     input  wire             rst_n,
@@ -1045,52 +1060,37 @@ module aead_stream_fifo #(
     output wire             full,
     output wire             empty
 );
-    localparam integer DEPTH = (1 << DEPTH_LOG2);
-    localparam [DEPTH_LOG2:0] ZERO_COUNT  = {DEPTH_LOG2+1{1'b0}};
-    localparam [DEPTH_LOG2:0] DEPTH_COUNT = (1 << DEPTH_LOG2);
+    reg [WIDTH-1:0] data_q;
+    reg             full_q;
 
-    reg [WIDTH-1:0] mem [0:DEPTH-1];
-    reg [DEPTH_LOG2:0] count;
-    integer i;
+    wire do_pop  = pop  && full_q;
+    wire do_push = push && (!full_q || do_pop);
 
-    wire do_pop  = pop  && (count != ZERO_COUNT);
-    wire do_push = push && ((count != DEPTH_COUNT) || do_pop);
-
-    assign empty = (count == ZERO_COUNT);
-    assign full  = (count == DEPTH_COUNT);
-
-    // Timing fix:
-    // The old circular FIFO used dout = mem[rd_ptr], which synthesized into
-    // a wide indexed read mux. That mux showed up in failed DPL cells as
-    // u_mc.u_aead.u_cfg_fifo.mem[0][*] cones. This shift FIFO keeps the
-    // visible output at mem[0], so the scheduler sees a stable head token
-    // without a rd_ptr-selected 64-bit mux.
-    assign dout = mem[0];
+    assign dout  = data_q;
+    assign full  = full_q;
+    assign empty = !full_q;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            count <= ZERO_COUNT;
+            full_q <= 1'b0;
         end else if (clear) begin
-            count <= ZERO_COUNT;
+            full_q <= 1'b0;
         end else begin
-            if (do_pop) begin
-                for (i = 0; i < DEPTH-1; i = i + 1) begin
-                    mem[i] <= mem[i+1];
-                end
-            end
-
-            if (do_push) begin
-                if (do_pop) begin
-                    mem[count - {{DEPTH_LOG2{1'b0}}, 1'b1}] <= din;
-                end else begin
-                    mem[count[DEPTH_LOG2-1:0]] <= din;
-                end
-            end
-
             case ({do_push, do_pop})
-                2'b10: count <= count + {{DEPTH_LOG2{1'b0}}, 1'b1};
-                2'b01: count <= count - {{DEPTH_LOG2{1'b0}}, 1'b1};
-                default: count <= count;
+                2'b10: begin
+                    data_q <= din;
+                    full_q <= 1'b1;
+                end
+                2'b01: begin
+                    full_q <= 1'b0;
+                end
+                2'b11: begin
+                    data_q <= din;
+                    full_q <= 1'b1;
+                end
+                default: begin
+                    full_q <= full_q;
+                end
             endcase
         end
     end
