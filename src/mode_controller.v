@@ -2,10 +2,8 @@
  * mode_controller.v — SDMC-ASCON dispatcher (streaming I/O).
  *
  * Transitional patch-fed architecture:
- * - HASH256, XOF128, and CXOF128 use the new stateful 64-bit patch-fed ASCON sponge core.
- * - XOF/CXOF/AEAD remain on the legacy 320-bit permutation boundary for now.
- * - This is a controlled migration step. Do not run GDS until all modes move
- *   to the patch-fed core and the legacy 320-bit boundary is removed.
+ * - HASH256, XOF128, CXOF128, and AEAD128 use patch-fed ASCON sponge cores.
+ * - Legacy 320-bit permutation input/output boundary is removed from mode_controller.
  */
 
 `default_nettype none
@@ -217,26 +215,10 @@ module mode_controller (
     wire _unused_hash_core = &{hash_core_x1, hash_core_x2, hash_core_x3, hash_core_x4, 1'b0};
 
     // -------------------------------------------------------------------------
-    // Legacy shared permutation for XOF/CXOF/AEAD only
+    // No legacy 320-bit permutation boundary remains in mode_controller.
+    // Each migrated mode currently owns a patch-fed sponge instance.
+    // Final area cleanup can collapse these into one shared patch-fed core.
     // -------------------------------------------------------------------------
-    reg          legacy_perm_start;
-    reg  [3:0]   legacy_perm_rounds;
-    reg  [319:0] legacy_perm_state_in;
-
-    wire [319:0] legacy_perm_state_out;
-    wire         legacy_perm_busy;
-    wire         legacy_perm_done;
-
-    ascon_permutation u_legacy_perm (
-        .clk        (clk),
-        .rst_n      (rst_n),
-        .start      (legacy_perm_start),
-        .num_rounds (legacy_perm_rounds),
-        .state_in   (legacy_perm_state_in),
-        .state_out  (legacy_perm_state_out),
-        .busy       (legacy_perm_busy),
-        .done       (legacy_perm_done)
-    );
 
     // -------------------------------------------------------------------------
     // XOF128: new patch-fed sponge core path
@@ -425,11 +407,46 @@ module mode_controller (
     wire _unused_cxof_core = &{cxof_core_x1, cxof_core_x2, cxof_core_x3, cxof_core_x4, 1'b0};
 
     // -------------------------------------------------------------------------
-    // AEAD128 legacy controller
+    // AEAD128: new patch-fed sponge core path
     // -------------------------------------------------------------------------
-    wire         aead_perm_start;
-    wire [3:0]   aead_perm_rounds;
-    wire [319:0] aead_perm_state_in;
+    wire         aead_patch_valid;
+    wire         aead_patch_ready;
+    wire [1:0]   aead_patch_op;
+    wire [2:0]   aead_patch_lane;
+    wire [63:0]  aead_patch_data;
+
+    wire         aead_core_perm_start;
+    wire [3:0]   aead_core_perm_rounds;
+    wire         aead_core_perm_busy;
+    wire         aead_core_perm_done;
+
+    wire [63:0]  aead_core_x0;
+    wire [63:0]  aead_core_x1;
+    wire [63:0]  aead_core_x2;
+    wire [63:0]  aead_core_x3;
+    wire [63:0]  aead_core_x4;
+
+    ascon_sponge_core u_aead_core (
+        .clk          (clk),
+        .rst_n        (rst_n),
+
+        .patch_valid  (aead_patch_valid),
+        .patch_ready  (aead_patch_ready),
+        .patch_op     (aead_patch_op),
+        .patch_lane   (aead_patch_lane),
+        .patch_data   (aead_patch_data),
+
+        .perm_start   (aead_core_perm_start),
+        .perm_rounds  (aead_core_perm_rounds),
+        .perm_busy    (aead_core_perm_busy),
+        .perm_done    (aead_core_perm_done),
+
+        .x0           (aead_core_x0),
+        .x1           (aead_core_x1),
+        .x2           (aead_core_x2),
+        .x3           (aead_core_x3),
+        .x4           (aead_core_x4)
+    );
 
     wire         aead_in_ready;
     wire [63:0]  aead_out_block;
@@ -440,7 +457,7 @@ module mode_controller (
     wire         aead_busy;
     wire         aead_done;
 
-    aead_controller u_aead (
+    aead_patch_controller u_aead (
         .clk             (clk),
         .rst_n           (rst_n),
         .start           (aead_start),
@@ -466,52 +483,23 @@ module mode_controller (
         .busy            (aead_busy),
         .done            (aead_done),
 
-        .perm_start      (aead_perm_start),
-        .perm_rounds     (aead_perm_rounds),
-        .perm_state_in   (aead_perm_state_in),
-        .perm_state_out  (legacy_perm_state_out),
-        .perm_busy       (legacy_perm_busy),
-        .perm_done       (legacy_perm_done & sel_aead_r)
+        .patch_valid     (aead_patch_valid),
+        .patch_ready     (aead_patch_ready),
+        .patch_op        (aead_patch_op),
+        .patch_lane      (aead_patch_lane),
+        .patch_data      (aead_patch_data),
+
+        .perm_start      (aead_core_perm_start),
+        .perm_rounds     (aead_core_perm_rounds),
+        .perm_busy       (aead_core_perm_busy),
+        .perm_done       (aead_core_perm_done),
+
+        .core_x0         (aead_core_x0),
+        .core_x1         (aead_core_x1),
+        .core_x2         (aead_core_x2),
+        .core_x3         (aead_core_x3),
+        .core_x4         (aead_core_x4)
     );
-
-    // -------------------------------------------------------------------------
-    // Legacy permutation input arbiter for non-HASH modes only
-    // -------------------------------------------------------------------------
-    reg          legacy_perm_start_req;
-    reg  [3:0]   legacy_perm_rounds_req;
-    reg  [319:0] legacy_perm_state_in_req;
-
-    always @(*) begin
-        legacy_perm_start_req    = 1'b0;
-        legacy_perm_rounds_req   = 4'd12;
-        legacy_perm_state_in_req = 320'd0;
-
-        if (sel_aead_r) begin
-            legacy_perm_start_req    = aead_perm_start;
-            legacy_perm_rounds_req   = aead_perm_rounds;
-            legacy_perm_state_in_req = aead_perm_state_in;
-        end
-    end
-
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            legacy_perm_start    <= 1'b0;
-            legacy_perm_rounds   <= 4'd12;
-            legacy_perm_state_in <= 320'd0;
-        end else if (reset_engine) begin
-            legacy_perm_start    <= 1'b0;
-            legacy_perm_rounds   <= 4'd12;
-            legacy_perm_state_in <= 320'd0;
-        end else begin
-            legacy_perm_start <= 1'b0;
-
-            if (legacy_perm_start_req) begin
-                legacy_perm_start    <= 1'b1;
-                legacy_perm_rounds   <= legacy_perm_rounds_req;
-                legacy_perm_state_in <= legacy_perm_state_in_req;
-            end
-        end
-    end
 
     // -------------------------------------------------------------------------
     // Input ready mux

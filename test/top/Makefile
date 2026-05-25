@@ -9,7 +9,7 @@ VERILOG_SOURCES = $(SRC_DIR)/project.v \
                   $(SRC_DIR)/uart_rx.v $(SRC_DIR)/uart_tx.v $(SRC_DIR)/baud_gen.v \
                   $(SRC_DIR)/protocol_parser.v $(SRC_DIR)/lane_router.v \
                   $(SRC_DIR)/mode_controller.v \
-                  $(SRC_DIR)/hash_controller.v $(SRC_DIR)/hash_patch_controller.v $(SRC_DIR)/xof_patch_controller.v $(SRC_DIR)/cxof_patch_controller.v $(SRC_DIR)/ascon_sponge_core.v $(SRC_DIR)/xof_controller.v \
+                  $(SRC_DIR)/hash_controller.v $(SRC_DIR)/hash_patch_controller.v $(SRC_DIR)/xof_patch_controller.v $(SRC_DIR)/cxof_patch_controller.v $(SRC_DIR)/aead_patch_controller.v $(SRC_DIR)/ascon_sponge_core.v $(SRC_DIR)/xof_controller.v \
                   $(SRC_DIR)/cxof_controller.v $(SRC_DIR)/aead_controller.v \
                   $(SRC_DIR)/ascon_permutation.v $(SRC_DIR)/ascon_round.v \
                   $(PWD)/tb_project.v
