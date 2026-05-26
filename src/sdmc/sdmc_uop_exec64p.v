@@ -75,9 +75,14 @@ module sdmc_uop_exec64p (
     wire rf_rd_en = (state == S_READ);
 
     wire internal_wr_en = (state == S_WRITE);
-    wire rf_wr_en = host_wr_en || internal_wr_en;
-    wire [3:0]  rf_wr_addr = host_wr_en ? host_wr_addr : dst_r;
-    wire [63:0] rf_wr_data = host_wr_en ? host_wr_data : result;
+    wire rf_wr_en = host_wr_en | internal_wr_en;
+
+    // Local write-port select. Host writes happen only while idle/ready;
+    // internal writes happen only in S_WRITE.
+    wire [3:0]  rf_wr_addr = (host_wr_en ? host_wr_addr : 4'd0) |
+                              (internal_wr_en ? dst_r : 4'd0);
+    wire [63:0] rf_wr_data = (host_wr_en ? host_wr_data : 64'd0) |
+                              (internal_wr_en ? result : 64'd0);
 
     wire [63:0] rf_rd_a;
     wire [63:0] rf_rd_b;

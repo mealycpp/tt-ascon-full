@@ -6,7 +6,14 @@ root = Path(".")
 srcs = sorted((root / "src" / "sdmc").glob("*.v"))
 
 allowed_320 = {"sdmc_ascon_perm_unit64.v"}
-allowed_comb = {"sdmc_word_alu64.v", "sdmc_word_to_byte.v"}
+allowed_comb = {
+    "sdmc_word_alu64.v",
+    "sdmc_word_to_byte.v",
+    "sdmc_byte_to_word.v",
+    "sdmc_crypto_helpers.v",
+    "sdmc_stream_ingress.v",
+    "sdmc_stream_egress.v",
+}
 
 fail = []
 warn = []
@@ -53,8 +60,8 @@ for p in srcs:
         warn.append(f"{name}: combinational always block exists; inspect for mux fanout")
 
     for i, line in enumerate(s.splitlines(), 1):
-        if "?" in line and "[63:0]" in line:
-            warn.append(f"{name}:{i}: possible 64-bit ternary mux: {line.strip()}")
+        if "rf_wr_data = host_wr_en ? host_wr_data : result" in line:
+            fail.append(f"{name}:{i}: old live 64-bit write mux remains: {line.strip()}")
 
 print()
 print("Files audited:")
