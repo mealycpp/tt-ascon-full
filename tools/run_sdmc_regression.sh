@@ -24,6 +24,10 @@ run_one ascon_perm_round_window /tmp/ascon_perm_round_window.vvp \
   src/ascon_permutation.v \
   test/ascon_perm_round_window/tb_ascon_perm_round_window.v
 
+run_one sdmc_stream_egress /tmp/sdmc_stream_egress.vvp \
+  src/sdmc/sdmc_stream_egress.v \
+  test/sdmc_stream_egress/tb_sdmc_stream_egress.v
+
 run_one sdmc_token_fifo /tmp/sdmc_token_fifo.vvp \
   src/sdmc/sdmc_token_fifo.v \
   test/sdmc_token_fifo/tb_sdmc_token_fifo.v
