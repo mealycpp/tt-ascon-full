@@ -6,7 +6,7 @@ module sdmc_engine64p (
     input  wire        clear,
 
     input  wire        start,
-    input  wire [1:0]  program_id,
+    input  wire [3:0]  program_id,
 
     input  wire        host_wr_en,
     input  wire [3:0]  host_wr_addr,

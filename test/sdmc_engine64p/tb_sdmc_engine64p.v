@@ -9,7 +9,7 @@ module tb_sdmc_engine64p;
     always #5 clk = ~clk;
 
     reg        start = 1'b0;
-    reg [1:0]  program_id = 2'd0;
+    reg [3:0]  program_id = 4'd0;
 
     reg        host_wr_en = 1'b0;
     reg [3:0]  host_wr_addr = 4'd0;
@@ -86,7 +86,7 @@ module tb_sdmc_engine64p;
     endtask
 
     task run_engine;
-        input [1:0] pid;
+        input [3:0] pid;
         integer guard;
         begin
             if (busy) begin
@@ -161,7 +161,7 @@ module tb_sdmc_engine64p;
                  64'h1111_2222_3333_4444,
                  64'h0123_4567_89ab_cdef});
 
-        run_engine(2'd0);
+        run_engine(4'd0);
 
         if ({r4,r3,r2,r1,r0} !== ref_state_out) begin
             $display("FAIL engine permutation result");
@@ -173,7 +173,7 @@ module tb_sdmc_engine64p;
         host_write(4'd0, 64'hffff_0000_aaaa_5555);
         host_write(4'd1, 64'h00ff_00ff_0f0f_f0f0);
 
-        run_engine(2'd1);
+        run_engine(4'd1);
 
         if (r3 !== 64'hff00_00ff_a5a5_a5a5) begin
             $display("FAIL engine ALU r3=%h", r3);

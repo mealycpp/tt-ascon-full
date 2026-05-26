@@ -13,7 +13,7 @@ run_one() {
 
   echo
   echo "=== $name ==="
-  iverilog -g2012 -o "$out" "$@"
+  iverilog -g2012 -I src/sdmc -o "$out" "$@"
   vvp "$out" | tee "reports/${name}.log"
   grep -q "PASS ${name}" "reports/${name}.log"
   rm -f "$out"

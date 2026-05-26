@@ -14,7 +14,7 @@ module tb_sdmc_uop_sequencer64p;
     wire       host_ready;
 
     reg        seq_start = 1'b0;
-    reg [1:0]  program_id = 2'd0;
+    reg [3:0]  program_id = 4'd0;
 
     wire       cmd_valid;
     wire       cmd_ready;
@@ -106,7 +106,7 @@ module tb_sdmc_uop_sequencer64p;
     endtask
 
     task run_seq;
-        input [1:0] pid;
+        input [3:0] pid;
         integer guard;
         begin
             program_id = pid;
@@ -174,7 +174,7 @@ module tb_sdmc_uop_sequencer64p;
                  64'h1111_2222_3333_4444,
                  64'h0123_4567_89ab_cdef});
 
-        run_seq(2'd0);
+        run_seq(4'd0);
 
         if ({r4,r3,r2,r1,r0} !== ref_state_out) begin
             $display("FAIL sequenced permutation result");
@@ -186,7 +186,7 @@ module tb_sdmc_uop_sequencer64p;
         host_write(4'd0, 64'hffff_0000_aaaa_5555);
         host_write(4'd1, 64'h00ff_00ff_0f0f_f0f0);
 
-        run_seq(2'd1);
+        run_seq(4'd1);
 
         if (r3 !== 64'hff00_00ff_a5a5_a5a5) begin
             $display("FAIL sequenced ALU r3=%h", r3);

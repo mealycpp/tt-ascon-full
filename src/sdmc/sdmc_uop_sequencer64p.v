@@ -1,12 +1,14 @@
 `default_nettype none
 
+`include "sdmc_modes.vh"
+
 module sdmc_uop_sequencer64p (
     input  wire       clk,
     input  wire       rst_n,
     input  wire       clear,
 
     input  wire       start,
-    input  wire [1:0] program_id,
+    input  wire [3:0] program_id,
 
     output reg        cmd_valid,
     input  wire       cmd_ready,
@@ -26,8 +28,8 @@ module sdmc_uop_sequencer64p (
     output reg        done
 );
 
-    localparam CMD_ALU      = 2'd0;
-    localparam CMD_PERM_WR  = 2'd1;
+    localparam CMD_ALU      = 4'd0;
+    localparam CMD_PERM_WR  = 4'd1;
     localparam CMD_PERM_RUN = 2'd2;
     localparam CMD_PERM_RD  = 2'd3;
 
@@ -41,7 +43,7 @@ module sdmc_uop_sequencer64p (
     localparam S_DONE  = 3'd4;
 
     reg [2:0] state;
-    reg [1:0] program_id_r;
+    reg [3:0] program_id_r;
     reg [4:0] pc;
     reg       instr_last;
 
@@ -61,14 +63,14 @@ module sdmc_uop_sequencer64p (
     endtask
 
     task load_instr;
-        input [1:0] pid;
+        input [3:0] pid;
         input [4:0] addr;
         begin
             set_nop();
 
             case (pid)
                 // Program 0: register state -> permutation -> register state
-                2'd0: begin
+                4'd0: begin
                     case (addr)
                         5'd0: begin cmd_type=CMD_PERM_WR;  cmd_src_a=4'd0; cmd_perm_lane=3'd0; instr_last=1'b0; end
                         5'd1: begin cmd_type=CMD_PERM_WR;  cmd_src_a=4'd1; cmd_perm_lane=3'd1; instr_last=1'b0; end
@@ -86,7 +88,7 @@ module sdmc_uop_sequencer64p (
                 end
 
                 // Program 1: tiny ALU sanity program, R3 = R0 xor R1
-                2'd1: begin
+                4'd1: begin
                     case (addr)
                         5'd0: begin
                             cmd_type      = CMD_ALU;
@@ -109,7 +111,7 @@ module sdmc_uop_sequencer64p (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state        <= S_IDLE;
-            program_id_r <= 2'd0;
+            program_id_r <= 4'd0;
             pc           <= 5'd0;
             cmd_valid    <= 1'b0;
             busy         <= 1'b0;
@@ -117,7 +119,7 @@ module sdmc_uop_sequencer64p (
             set_nop();
         end else if (clear) begin
             state        <= S_IDLE;
-            program_id_r <= 2'd0;
+            program_id_r <= 4'd0;
             pc           <= 5'd0;
             cmd_valid    <= 1'b0;
             busy         <= 1'b0;
