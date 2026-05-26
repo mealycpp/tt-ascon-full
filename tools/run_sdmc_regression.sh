@@ -56,6 +56,14 @@ run_one sdmc_xof_family_core_cxof /tmp/sdmc_xof_family_core_cxof.vvp \
   src/sdmc/sdmc_xof_family_core.v \
   test/sdmc_xof_family_core_cxof/tb_sdmc_xof_family_core_cxof.v
 
+run_one sdmc_xof_chain_family_core /tmp/sdmc_xof_chain_family_core.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_xof_family_core.v \
+  src/sdmc/sdmc_xof_chain_family_core.v \
+  test/sdmc_xof_chain_family_core/tb_sdmc_xof_chain_family_core.v
+
 run_one sdmc_xof_family_core_empty /tmp/sdmc_xof_family_core_empty.vvp \
   src/ascon_round.v \
   src/ascon_permutation.v \
