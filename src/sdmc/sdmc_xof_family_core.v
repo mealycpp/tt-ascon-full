@@ -47,10 +47,17 @@ module sdmc_xof_family_core (
     localparam S_SQ_WAIT    = 5'd16;
     localparam S_DONE       = 5'd17;
     localparam S_ERR        = 5'd18;
+    localparam S_CS_WAIT    = 5'd19;
 
     reg [4:0] state;
 
     reg [15:0] out_left_q;
+    reg [1:0]  phase_q;
+
+    localparam PH_MSG   = 2'd0;
+    localparam PH_CS    = 2'd1;
+    localparam PH_CSLEN = 2'd2;
+
     reg [63:0] x0_q;
 
     reg [63:0] msg_word_q;
@@ -225,7 +232,7 @@ module sdmc_xof_family_core (
                     if (perm_ready) begin
                         perm_wr_en   <= 1'b1;
                         perm_wr_lane <= 3'd0;
-                        perm_wr_data <= `SDMC_XOF128_IV;
+                        perm_wr_data <= use_cxof ? `SDMC_CXOF128_IV : `SDMC_XOF128_IV;
                         state        <= S_LOAD_X1;
                     end
                 end
@@ -275,13 +282,21 @@ module sdmc_xof_family_core (
 
                 S_INIT_WAIT: begin
                     if (perm_done) begin
-                        if (msg_len == 16'd0) begin
+                        if (use_cxof) begin
+                            phase_q     <= PH_CSLEN;
+                            msg_word_q  <= {45'd0, cs_len, 3'b000};
+                            msg_bytes_q <= 4'd8;
+                            msg_last_q  <= 1'b0;
+                            state       <= S_ABS_RD;
+                        end else if (msg_len == 16'd0) begin
+                            phase_q     <= PH_MSG;
                             msg_word_q  <= 64'd0;
                             msg_bytes_q <= 4'd0;
                             msg_last_q  <= 1'b1;
                             state       <= S_ABS_RD;
                         end else begin
-                            state <= S_MSG_WAIT;
+                            phase_q <= PH_MSG;
+                            state   <= S_MSG_WAIT;
                         end
                     end
                 end
@@ -293,6 +308,22 @@ module sdmc_xof_family_core (
                             state <= S_ERR;
                         end else begin
                             in_pop      <= 1'b1;
+                            msg_word_q  <= tok_data;
+                            msg_bytes_q <= tok_bytes;
+                            msg_last_q  <= tok_last;
+                            state       <= S_ABS_RD;
+                        end
+                    end
+                end
+
+                S_CS_WAIT: begin
+                    if (!in_empty) begin
+                        if (tok_kind != `SDMC_TOK_CS || tok_bytes == 4'd0) begin
+                            error <= 1'b1;
+                            state <= S_ERR;
+                        end else begin
+                            in_pop      <= 1'b1;
+                            phase_q     <= PH_CS;
                             msg_word_q  <= tok_data;
                             msg_bytes_q <= tok_bytes;
                             msg_last_q  <= tok_last;
@@ -346,20 +377,56 @@ module sdmc_xof_family_core (
 
                 S_ABS_WAIT: begin
                     if (perm_done) begin
-                        if (empty_pad_q) begin
+                        if (phase_q == PH_CSLEN) begin
+                            phase_q <= PH_CS;
+                            if (cs_len == 16'd0) begin
+                                msg_word_q  <= 64'd0;
+                                msg_bytes_q <= 4'd0;
+                                msg_last_q  <= 1'b1;
+                                state       <= S_ABS_RD;
+                            end else begin
+                                state <= S_CS_WAIT;
+                            end
+                        end else if (empty_pad_q) begin
                             empty_pad_q <= 1'b0;
-                            state       <= S_SQ_EMIT;
+                            if (phase_q == PH_CS) begin
+                                phase_q <= PH_MSG;
+                                if (msg_len == 16'd0) begin
+                                    msg_word_q  <= 64'd0;
+                                    msg_bytes_q <= 4'd0;
+                                    msg_last_q  <= 1'b1;
+                                    state       <= S_ABS_RD;
+                                end else begin
+                                    state <= S_MSG_WAIT;
+                                end
+                            end else begin
+                                state <= S_SQ_EMIT;
+                            end
                         end else if (msg_last_q) begin
                             if (msg_bytes_q == 4'd8) begin
                                 empty_pad_q <= 1'b1;
                                 msg_word_q  <= 64'd0;
                                 msg_bytes_q <= 4'd0;
                                 state       <= S_ABS_RD;
+                            end else if (phase_q == PH_CS) begin
+                                phase_q <= PH_MSG;
+                                if (msg_len == 16'd0) begin
+                                    msg_word_q  <= 64'd0;
+                                    msg_bytes_q <= 4'd0;
+                                    msg_last_q  <= 1'b1;
+                                    state       <= S_ABS_RD;
+                                end else begin
+                                    state <= S_MSG_WAIT;
+                                end
                             end else begin
                                 state <= S_SQ_EMIT;
                             end
                         end else begin
-                            state <= S_MSG_WAIT;
+                            if (phase_q == PH_CS) begin
+                                state <= S_CS_WAIT;
+                            end else begin
+                                state <= S_MSG_WAIT;
+                            end
                         end
                     end
                 end
