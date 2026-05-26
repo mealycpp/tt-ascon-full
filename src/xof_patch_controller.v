@@ -82,16 +82,19 @@ module xof_patch_controller (
     reg         is_chained_iteration;
     reg         msg_last_seen;
 
+    reg         chain_enable_r;
+    reg         chain_debug_r;
+    reg         msg_empty_r;
+    reg [15:0]  effective_out_length_r;
+
     reg [63:0]  chain_fifo [0:3];
 
     reg [63:0]  perm_word;
     reg [3:0]   perm_bytes;
     reg         perm_last;
-    reg         perm_is_chain;
-    reg [1:0]   perm_chain_idx;
     reg [63:0]  absorb_word_r;
 
-    wire _unused = &{perm_busy, msg_total_bytes, 1'b0};
+    wire _unused = &{perm_busy, 1'b0};
 
     function [63:0] pad_val;
         input [3:0] i;
@@ -134,42 +137,39 @@ module xof_patch_controller (
         (out_length > 16'd64) ? 16'd64 : out_length;
 
     wire emit_external =
-        chain_debug || (!chain_enable) || is_final_iteration;
-
-    wire [63:0] prepared_absorb_word =
-        perm_is_chain ? chain_fifo[perm_chain_idx] :
-        (perm_last ? ((perm_word & mask_n(perm_bytes)) ^ pad_val(perm_bytes))
-                   : perm_word);
+        chain_debug_r || (!chain_enable_r) || is_final_iteration;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state                <= S_IDLE;
-            out_remaining        <= 16'd0;
-            passes_left          <= 16'd0;
-            chain_fifo_wr_idx    <= 2'd0;
-            chain_fifo_rd_idx    <= 2'd0;
-            is_final_iteration   <= 1'b0;
-            is_chained_iteration <= 1'b0;
-            msg_last_seen        <= 1'b0;
-            in_word_ready        <= 1'b0;
-            out_block            <= 64'd0;
-            out_valid            <= 1'b0;
-            out_last             <= 1'b0;
-            out_byte_count       <= 4'd0;
-            busy                 <= 1'b0;
-            done                 <= 1'b0;
-            patch_valid          <= 1'b0;
-            patch_op             <= PATCH_CLEAR;
-            patch_lane           <= LANE_X0;
-            patch_data           <= 64'd0;
-            perm_start           <= 1'b0;
-            perm_rounds          <= 4'd12;
-            perm_word            <= 64'd0;
-            perm_bytes           <= 4'd0;
-            perm_last            <= 1'b0;
-            perm_is_chain        <= 1'b0;
-            perm_chain_idx       <= 2'd0;
-            absorb_word_r        <= 64'd0;
+            state                  <= S_IDLE;
+            out_remaining          <= 16'd0;
+            passes_left            <= 16'd0;
+            chain_fifo_wr_idx      <= 2'd0;
+            chain_fifo_rd_idx      <= 2'd0;
+            is_final_iteration     <= 1'b0;
+            is_chained_iteration   <= 1'b0;
+            msg_last_seen          <= 1'b0;
+            chain_enable_r         <= 1'b0;
+            chain_debug_r          <= 1'b0;
+            msg_empty_r            <= 1'b0;
+            effective_out_length_r <= 16'd0;
+            in_word_ready          <= 1'b0;
+            out_block              <= 64'd0;
+            out_valid              <= 1'b0;
+            out_last               <= 1'b0;
+            out_byte_count         <= 4'd0;
+            busy                   <= 1'b0;
+            done                   <= 1'b0;
+            patch_valid            <= 1'b0;
+            patch_op               <= PATCH_CLEAR;
+            patch_lane             <= LANE_X0;
+            patch_data             <= 64'd0;
+            perm_start             <= 1'b0;
+            perm_rounds            <= 4'd12;
+            perm_word              <= 64'd0;
+            perm_bytes             <= 4'd0;
+            perm_last              <= 1'b0;
+            absorb_word_r          <= 64'd0;
         end else if (reset_engine) begin
             state         <= S_IDLE;
             busy          <= 1'b0;
@@ -192,6 +192,11 @@ module xof_patch_controller (
                 S_IDLE: begin
                     busy <= 1'b0;
                     if (start) begin
+                        chain_enable_r         <= chain_enable;
+                        chain_debug_r          <= chain_debug;
+                        msg_empty_r            <= (msg_total_bytes == 16'd0);
+                        effective_out_length_r <= effective_out_length;
+
                         passes_left          <= requested_passes;
                         is_final_iteration   <= (requested_passes == 16'd1);
                         is_chained_iteration <= 1'b0;
@@ -238,11 +243,10 @@ module xof_patch_controller (
                             chain_fifo_rd_idx <= 2'd0;
                             msg_last_seen     <= 1'b0;
                             state             <= S_CHAIN_FETCH;
-                        end else if (msg_total_bytes == 16'd0) begin
-                            absorb_word_r  <= pad_val(4'd0);
-                            msg_last_seen  <= 1'b1;
-                            perm_is_chain  <= 1'b0;
-                            state          <= S_MSG_PATCH;
+                        end else if (msg_empty_r) begin
+                            absorb_word_r <= pad_val(4'd0);
+                            msg_last_seen <= 1'b1;
+                            state         <= S_MSG_PATCH;
                         end else begin
                             state <= S_MSG_PULL;
                         end
@@ -257,14 +261,18 @@ module xof_patch_controller (
                         perm_word     <= in_word;
                         perm_bytes    <= in_word_bytes;
                         perm_last     <= in_word_last;
-                        perm_is_chain <= 1'b0;
                         state         <= S_WORD_PREP;
                     end
                 end
 
                 S_CHAIN_FETCH: begin
-                    perm_is_chain <= 1'b1;
-                    perm_chain_idx <= chain_fifo_rd_idx;
+                    case (chain_fifo_rd_idx)
+                        2'd0: absorb_word_r <= chain_fifo[0];
+                        2'd1: absorb_word_r <= chain_fifo[1];
+                        2'd2: absorb_word_r <= chain_fifo[2];
+                        default: absorb_word_r <= chain_fifo[3];
+                    endcase
+
                     msg_last_seen <= 1'b0;
 
                     if (chain_fifo_rd_idx == 2'd3) begin
@@ -273,12 +281,16 @@ module xof_patch_controller (
                         chain_fifo_rd_idx <= chain_fifo_rd_idx + 2'd1;
                     end
 
-                    state <= S_WORD_PREP;
+                    state <= S_MSG_PATCH;
                 end
 
                 S_WORD_PREP: begin
-                    absorb_word_r <= prepared_absorb_word;
-                    state         <= S_MSG_PATCH;
+                    if (perm_last) begin
+                        absorb_word_r <= (perm_word & mask_n(perm_bytes)) ^ pad_val(perm_bytes);
+                    end else begin
+                        absorb_word_r <= perm_word;
+                    end
+                    state <= S_MSG_PATCH;
                 end
 
                 S_MSG_PATCH: begin
@@ -306,7 +318,6 @@ module xof_patch_controller (
                             if (chain_fifo_rd_idx == 2'd0) begin
                                 absorb_word_r <= pad_val(4'd0);
                                 msg_last_seen <= 1'b1;
-                                perm_is_chain <= 1'b0;
                                 state         <= S_MSG_PATCH;
                             end else begin
                                 state <= S_CHAIN_FETCH;
@@ -318,7 +329,7 @@ module xof_patch_controller (
                 end
 
                 S_SQ_EMIT: begin
-                    if (chain_enable) begin
+                    if (chain_enable_r) begin
                         chain_fifo[chain_fifo_wr_idx] <= core_x0;
                         chain_fifo_wr_idx             <= chain_fifo_wr_idx + 2'd1;
                     end
@@ -344,7 +355,7 @@ module xof_patch_controller (
                             is_final_iteration   <= (passes_left == 16'd2);
                             is_chained_iteration <= 1'b1;
                             out_remaining        <= (passes_left == 16'd2)
-                                                    ? effective_out_length
+                                                    ? effective_out_length_r
                                                     : 16'd32;
                             chain_fifo_wr_idx    <= 2'd0;
                             msg_last_seen        <= 1'b0;
