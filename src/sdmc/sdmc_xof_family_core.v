@@ -50,7 +50,7 @@ module sdmc_xof_family_core (
 
     reg [4:0] state;
 
-    reg [1:0]  squeeze_idx;
+    reg [15:0] out_left_q;
     reg [63:0] x0_q;
 
     reg [63:0] msg_word_q;
@@ -147,10 +147,14 @@ module sdmc_xof_family_core (
 
     wire _unused = &{perm_busy, p1, p2, p3, p4, use_cxof, chain_count[0], cs_len[0], out_len[0], 1'b0};
 
+    wire [3:0] emit_bytes = (out_left_q >= 16'd8) ? 4'd8 : out_left_q[3:0];
+    wire       emit_last  = (out_left_q <= 16'd8);
+
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state        <= S_IDLE;
-            squeeze_idx  <= 2'd0;
+            out_left_q   <= 16'd0;
             x0_q         <= 64'd0;
             msg_word_q   <= 64'd0;
             msg_bytes_q  <= 4'd0;
@@ -174,7 +178,7 @@ module sdmc_xof_family_core (
             error        <= 1'b0;
         end else if (clear) begin
             state        <= S_IDLE;
-            squeeze_idx  <= 2'd0;
+            out_left_q   <= 16'd0;
             x0_q         <= 64'd0;
             msg_word_q   <= 64'd0;
             msg_bytes_q  <= 4'd0;
@@ -211,7 +215,7 @@ module sdmc_xof_family_core (
 
                     if (start) begin
                         busy        <= 1'b1;
-                        squeeze_idx <= 2'd0;
+                        out_left_q  <= out_len;
                         empty_pad_q <= 1'b0;
                         state       <= S_LOAD_X0;
                     end
@@ -363,26 +367,26 @@ module sdmc_xof_family_core (
                 S_SQ_EMIT: begin
                     if (!out_full) begin
                         out_token <= {
-                            (squeeze_idx == 2'd3),
+                            emit_last,
                             `SDMC_TOK_OUT,
-                            4'd8,
+                            emit_bytes,
                             p0
                         };
                         out_push <= 1'b1;
 
-                        if (squeeze_idx == 2'd3) begin
+                        if (emit_last) begin
                             state <= S_DONE;
                         end else begin
-                            state <= S_SQ_START;
+                            out_left_q <= out_left_q - 16'd8;
+                            state      <= S_SQ_START;
                         end
                     end
                 end
 
                 S_SQ_START: begin
                     if (perm_ready) begin
-                        squeeze_idx <= squeeze_idx + 2'd1;
-                        perm_start  <= 1'b1;
-                        state       <= S_SQ_WAIT;
+                        perm_start <= 1'b1;
+                        state      <= S_SQ_WAIT;
                     end
                 end
 
