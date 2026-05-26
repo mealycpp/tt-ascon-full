@@ -96,6 +96,18 @@ module xof_patch_controller (
 
     wire _unused = &{perm_busy, 1'b0};
 
+    // Chain feedback data storage.
+    // Keep chain_fifo data out of the async-reset control always block.
+    // This prevents rst_n/control reset muxing from becoming a timed data path
+    // into chain_fifo[*][*] during post-PnR STA.
+    wire chain_fifo_capture = (state == S_SQ_EMIT) && chain_enable;
+
+    always @(posedge clk) begin
+        if (chain_fifo_capture) begin
+            chain_fifo[chain_fifo_wr_idx] <= core_x0;
+        end
+    end
+
     function [63:0] pad_val;
         input [3:0] i;
         begin
@@ -330,7 +342,6 @@ module xof_patch_controller (
 
                 S_SQ_EMIT: begin
                     if (chain_enable_r) begin
-                        chain_fifo[chain_fifo_wr_idx] <= core_x0;
                         chain_fifo_wr_idx             <= chain_fifo_wr_idx + 2'd1;
                     end
 
