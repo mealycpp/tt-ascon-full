@@ -47,6 +47,10 @@ module sdmc_xof_chain_family_core (
     reg [1:0] capture_idx;
     reg [2:0] feed_idx;
 
+    reg [`SDMC_TOKEN_W-1:0] cs_token_q;
+    reg                     cs_token_seen;
+    reg                     cs_feed_done;
+
     reg inner_start;
 
     wire inner_done;
@@ -72,9 +76,15 @@ module sdmc_xof_chain_family_core (
     wire [`SDMC_TOKEN_W-1:0] internal_msg_token =
         { (feed_idx == 3'd3), `SDMC_TOK_MSG, 4'd8, feed_word };
 
-    assign inner_in_token = pass0_q ? in_token : internal_msg_token;
-    assign inner_in_empty = pass0_q ? in_empty : (feed_idx >= 3'd4);
-    assign in_pop         = pass0_q ? inner_in_pop : 1'b0;
+    wire feeding_cached_cs = (!pass0_q) && use_cxof && (cs_len != 16'd0) && (!cs_feed_done);
+
+    assign inner_in_token = pass0_q ? in_token :
+                            (feeding_cached_cs ? cs_token_q : internal_msg_token);
+
+    assign inner_in_empty = pass0_q ? in_empty :
+                            (feeding_cached_cs ? (!cs_token_seen) : (feed_idx >= 3'd4));
+
+    assign in_pop = pass0_q ? inner_in_pop : 1'b0;
 
     assign inner_out_full = final_pass ? out_full : 1'b0;
     assign out_token      = final_pass ? inner_out_token : {`SDMC_TOKEN_W{1'b0}};
@@ -86,9 +96,9 @@ module sdmc_xof_chain_family_core (
         .clear       (clear),
 
         .start       (inner_start),
-        .use_cxof    (1'b0),
+        .use_cxof    (use_cxof),
         .chain_count (16'd1),
-        .cs_len      (16'd0),
+        .cs_len      (cs_len),
         .out_len     (final_pass ? out_len : 16'd32),
         .msg_len     (pass0_q ? msg_len : 16'd32),
 
@@ -118,7 +128,10 @@ module sdmc_xof_chain_family_core (
             digest3     <= 64'd0;
             capture_idx <= 2'd0;
             feed_idx    <= 3'd0;
-            inner_start <= 1'b0;
+            cs_token_q    <= {`SDMC_TOKEN_W{1'b0}};
+            cs_token_seen <= 1'b0;
+            cs_feed_done  <= 1'b0;
+            inner_start    <= 1'b0;
             busy        <= 1'b0;
             done        <= 1'b0;
             error       <= 1'b0;
@@ -132,7 +145,10 @@ module sdmc_xof_chain_family_core (
             digest3     <= 64'd0;
             capture_idx <= 2'd0;
             feed_idx    <= 3'd0;
-            inner_start <= 1'b0;
+            cs_token_q    <= {`SDMC_TOKEN_W{1'b0}};
+            cs_token_seen <= 1'b0;
+            cs_feed_done  <= 1'b0;
+            inner_start    <= 1'b0;
             busy        <= 1'b0;
             done        <= 1'b0;
             error       <= 1'b0;
@@ -140,8 +156,17 @@ module sdmc_xof_chain_family_core (
             inner_start <= 1'b0;
             done        <= 1'b0;
 
+            if (pass0_q && inner_in_pop && (in_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB] == `SDMC_TOK_CS)) begin
+                cs_token_q    <= in_token;
+                cs_token_seen <= 1'b1;
+            end
+
             if ((!pass0_q) && inner_in_pop) begin
-                feed_idx <= feed_idx + 3'd1;
+                if (feeding_cached_cs) begin
+                    cs_feed_done <= 1'b1;
+                end else begin
+                    feed_idx <= feed_idx + 3'd1;
+                end
             end
 
             if ((!final_pass) && inner_out_push) begin
@@ -161,7 +186,7 @@ module sdmc_xof_chain_family_core (
                     error <= 1'b0;
 
                     if (start) begin
-                        if (use_cxof || out_len == 16'd0) begin
+                        if (out_len == 16'd0) begin
                             error <= 1'b1;
                             done  <= 1'b1;
                             state <= S_IDLE;
@@ -169,9 +194,12 @@ module sdmc_xof_chain_family_core (
                             busy        <= 1'b1;
                             pass0_q     <= 1'b1;
                             passes_left <= (chain_count == 16'd0) ? 16'd1 : chain_count;
-                            capture_idx <= 2'd0;
-                            feed_idx    <= 3'd0;
-                            state       <= S_START_PASS;
+                            capture_idx   <= 2'd0;
+                            feed_idx      <= 3'd0;
+                            cs_token_q    <= {`SDMC_TOKEN_W{1'b0}};
+                            cs_token_seen <= (cs_len == 16'd0);
+                            cs_feed_done  <= (cs_len == 16'd0);
+                            state         <= S_START_PASS;
                         end
                     end
                 end
@@ -197,9 +225,10 @@ module sdmc_xof_chain_family_core (
                 S_NEXT_PASS: begin
                     passes_left <= passes_left - 16'd1;
                     pass0_q     <= 1'b0;
-                    feed_idx    <= 3'd0;
-                    capture_idx <= 2'd0;
-                    state       <= S_START_PASS;
+                    feed_idx     <= 3'd0;
+                    capture_idx  <= 2'd0;
+                    cs_feed_done <= (cs_len == 16'd0);
+                    state        <= S_START_PASS;
                 end
 
                 S_DONE: begin
