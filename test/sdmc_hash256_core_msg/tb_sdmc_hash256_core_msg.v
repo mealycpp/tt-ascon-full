@@ -3,7 +3,7 @@
 
 `include "sdmc_stream_defs.vh"
 
-module tb_sdmc_hash256_core_empty;
+module tb_sdmc_hash256_core_msg;
 
     reg clk = 1'b0;
     reg rst_n = 1'b0;
@@ -12,13 +12,15 @@ module tb_sdmc_hash256_core_empty;
 
     reg start = 1'b0;
 
+    reg token_available = 1'b1;
+    wire [`SDMC_TOKEN_W-1:0] in_token =
+        {1'b1, `SDMC_TOK_MSG, 4'd3, 64'h0000_0000_0063_6261};
+    wire in_empty = !token_available;
+    wire in_pop;
+
     wire [`SDMC_TOKEN_W-1:0] out_token;
     wire out_push;
     reg  out_full = 1'b0;
-
-    wire [`SDMC_TOKEN_W-1:0] in_token = {`SDMC_TOKEN_W{1'b0}};
-    wire in_empty = 1'b1;
-    wire in_pop;
 
     wire busy;
     wire done;
@@ -32,7 +34,7 @@ module tb_sdmc_hash256_core_empty;
         .rst_n(rst_n),
         .clear(clear),
         .start(start),
-        .msg_len(16'd0),
+        .msg_len(16'd3),
         .in_token(in_token),
         .in_empty(in_empty),
         .in_pop(in_pop),
@@ -59,34 +61,41 @@ module tb_sdmc_hash256_core_empty;
         if (!rst_n || clear) begin
             digest <= 256'd0;
             word_idx <= 2'd0;
-        end else if (out_push) begin
-            if (tok_kind !== `SDMC_TOK_OUT || tok_bytes !== 4'd8) begin
-                $display("FAIL bad output token kind=%h bytes=%0d", tok_kind, tok_bytes);
-                $finish;
+            token_available <= 1'b1;
+        end else begin
+            if (in_pop) begin
+                token_available <= 1'b0;
             end
 
-            case (word_idx)
-                2'd0: digest[63:0]    <= tok_data;
-                2'd1: digest[127:64]  <= tok_data;
-                2'd2: digest[191:128] <= tok_data;
-                2'd3: digest[255:192] <= tok_data;
-                default: ;
-            endcase
+            if (out_push) begin
+                if (tok_kind !== `SDMC_TOK_OUT || tok_bytes !== 4'd8) begin
+                    $display("FAIL bad output token kind=%h bytes=%0d", tok_kind, tok_bytes);
+                    $finish;
+                end
 
-            if (word_idx == 2'd3 && !tok_last) begin
-                $display("FAIL final token missing last");
-                $finish;
+                case (word_idx)
+                    2'd0: digest[63:0]    <= tok_data;
+                    2'd1: digest[127:64]  <= tok_data;
+                    2'd2: digest[191:128] <= tok_data;
+                    2'd3: digest[255:192] <= tok_data;
+                    default: ;
+                endcase
+
+                if (word_idx == 2'd3 && !tok_last) begin
+                    $display("FAIL final token missing last");
+                    $finish;
+                end
+
+                word_idx <= word_idx + 2'd1;
             end
-
-            word_idx <= word_idx + 2'd1;
         end
     end
 
     integer guard;
 
     initial begin
-        $dumpfile("tb_sdmc_hash256_core_empty.vcd");
-        $dumpvars(0, tb_sdmc_hash256_core_empty);
+        $dumpfile("tb_sdmc_hash256_core_msg.vcd");
+        $dumpvars(0, tb_sdmc_hash256_core_msg);
 
         repeat (5) tick();
         rst_n = 1'b1;
@@ -100,7 +109,7 @@ module tb_sdmc_hash256_core_empty;
         while (!done) begin
             tick();
             guard = guard + 1;
-            if (guard > 1000) begin
+            if (guard > 1200) begin
                 $display("FAIL timeout");
                 $finish;
             end
@@ -113,17 +122,18 @@ module tb_sdmc_hash256_core_empty;
             $finish;
         end
 
-        if (word_idx !== 2'd0) begin
-            // word_idx wrapped from 3 to 0 after 4 pushes, expected.
+        if (token_available) begin
+            $display("FAIL input token was not consumed");
+            $finish;
         end
 
-        if (digest !== 256'hb2924d30aa3bd59b838f9b24aa70faa1649ba8de8f9ff2ca986b2f0f85e53b0b) begin
+        if (digest !== 256'hcf3509c20ff434dfcf3d2df95aa4204dccb044e8336f063b9b823c1c4303aa45) begin
             $display("FAIL digest mismatch");
             $display("got=%h", digest);
             $finish;
         end
 
-        $display("PASS sdmc_hash256_core_empty");
+        $display("PASS sdmc_hash256_core_msg");
         $finish;
     end
 
