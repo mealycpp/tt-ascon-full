@@ -1,12 +1,17 @@
 `default_nettype none
 
+`include "sdmc_modes.vh"
+
 module sdmc_engine64p (
     input  wire        clk,
     input  wire        rst_n,
     input  wire        clear,
 
     input  wire        start,
-    input  wire [3:0]  program_id,
+
+    input  wire        cfg_wr_en,
+    input  wire [3:0]  cfg_wr_addr,
+    input  wire [63:0] cfg_wr_data,
 
     input  wire        host_wr_en,
     input  wire [3:0]  host_wr_addr,
@@ -15,6 +20,18 @@ module sdmc_engine64p (
 
     output wire        busy,
     output wire        done,
+
+    output wire [3:0]  host_mode,
+    output wire [3:0]  program_id,
+
+    output wire        use_cxof,
+    output wire        is_decrypt,
+
+    output wire [15:0] chain_count,
+    output wire [15:0] msg_len,
+    output wire [15:0] cs_len,
+    output wire [15:0] ad_len,
+    output wire [15:0] out_len,
 
     output wire [63:0] result,
 
@@ -53,6 +70,28 @@ module sdmc_engine64p (
     assign busy       = seq_busy | exec_busy;
     assign done       = seq_done;
     assign host_ready = (!seq_busy) & exec_host_ready;
+
+    sdmc_config_regs u_cfg (
+        .clk         (clk),
+        .rst_n       (rst_n),
+        .clear       (clear),
+
+        .cfg_wr_en   (cfg_wr_en & host_ready),
+        .cfg_wr_addr (cfg_wr_addr),
+        .cfg_wr_data (cfg_wr_data),
+
+        .host_mode   (host_mode),
+        .program_id  (program_id),
+
+        .use_cxof    (use_cxof),
+        .is_decrypt  (is_decrypt),
+
+        .chain_count (chain_count),
+        .msg_len     (msg_len),
+        .cs_len      (cs_len),
+        .ad_len      (ad_len),
+        .out_len     (out_len)
+    );
 
     sdmc_uop_sequencer64p u_seq (
         .clk            (clk),

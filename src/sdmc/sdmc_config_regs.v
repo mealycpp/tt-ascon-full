@@ -32,6 +32,9 @@ module sdmc_config_regs (
         input [3:0] mode;
         begin
             case (mode)
+                `SDMC_HOST_DEBUG_PERM_SMOKE: decode_program = `SDMC_PROG_PERM_SMOKE;
+                `SDMC_HOST_DEBUG_ALU_SMOKE:  decode_program = `SDMC_PROG_ALU_SMOKE;
+
                 `SDMC_HOST_HASH:       decode_program = `SDMC_PROG_HASH_FAMILY;
                 `SDMC_HOST_HASHA:      decode_program = `SDMC_PROG_HASH_FAMILY;
 

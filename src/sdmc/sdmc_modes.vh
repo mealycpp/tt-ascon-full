@@ -19,4 +19,9 @@
 `define SDMC_HOST_AEAD_ENC          4'd6
 `define SDMC_HOST_AEAD_DEC          4'd7
 
+
+// Debug/test host modes for bring-up only.
+`define SDMC_HOST_DEBUG_PERM_SMOKE 4'd14
+`define SDMC_HOST_DEBUG_ALU_SMOKE  4'd15
+
 `endif

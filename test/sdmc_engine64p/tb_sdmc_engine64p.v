@@ -1,6 +1,8 @@
 `timescale 1ns/1ps
 `default_nettype none
 
+`include "sdmc_modes.vh"
+
 module tb_sdmc_engine64p;
 
     reg clk = 1'b0;
@@ -8,8 +10,11 @@ module tb_sdmc_engine64p;
     reg clear = 1'b0;
     always #5 clk = ~clk;
 
-    reg        start = 1'b0;
-    reg [3:0]  program_id = 4'd0;
+    reg start = 1'b0;
+
+    reg        cfg_wr_en = 1'b0;
+    reg [3:0]  cfg_wr_addr = 4'd0;
+    reg [63:0] cfg_wr_data = 64'd0;
 
     reg        host_wr_en = 1'b0;
     reg [3:0]  host_wr_addr = 4'd0;
@@ -18,15 +23,24 @@ module tb_sdmc_engine64p;
 
     wire       busy;
     wire       done;
-    wire [63:0] result;
 
+    wire [3:0]  host_mode;
+    wire [3:0]  program_id;
+    wire        use_cxof;
+    wire        is_decrypt;
+    wire [15:0] chain_count;
+    wire [15:0] msg_len;
+    wire [15:0] cs_len;
+    wire [15:0] ad_len;
+    wire [15:0] out_len;
+
+    wire [63:0] result;
     wire [63:0] r0, r1, r2, r3, r4;
     wire [63:0] p0, p1, p2, p3, p4;
 
     reg          ref_start = 1'b0;
     reg  [319:0] ref_state_in = 320'd0;
     wire [319:0] ref_state_out;
-    wire         ref_busy;
     wire         ref_done;
 
     sdmc_engine64p dut (
@@ -35,7 +49,10 @@ module tb_sdmc_engine64p;
         .clear(clear),
 
         .start(start),
-        .program_id(program_id),
+
+        .cfg_wr_en(cfg_wr_en),
+        .cfg_wr_addr(cfg_wr_addr),
+        .cfg_wr_data(cfg_wr_data),
 
         .host_wr_en(host_wr_en),
         .host_wr_addr(host_wr_addr),
@@ -44,6 +61,17 @@ module tb_sdmc_engine64p;
 
         .busy(busy),
         .done(done),
+
+        .host_mode(host_mode),
+        .program_id(program_id),
+        .use_cxof(use_cxof),
+        .is_decrypt(is_decrypt),
+        .chain_count(chain_count),
+        .msg_len(msg_len),
+        .cs_len(cs_len),
+        .ad_len(ad_len),
+        .out_len(out_len),
+
         .result(result),
 
         .r0(r0), .r1(r1), .r2(r2), .r3(r3), .r4(r4),
@@ -57,13 +85,32 @@ module tb_sdmc_engine64p;
         .num_rounds(4'd12),
         .state_in(ref_state_in),
         .state_out(ref_state_out),
-        .busy(ref_busy),
+        .busy(),
         .done(ref_done)
     );
 
     task tick;
         begin
             @(negedge clk);
+        end
+    endtask
+
+    task cfg_write;
+        input [3:0] addr;
+        input [63:0] data;
+        begin
+            if (!host_ready) begin
+                $display("FAIL config host not ready");
+                $finish;
+            end
+            cfg_wr_addr = addr;
+            cfg_wr_data = data;
+            cfg_wr_en   = 1'b1;
+            tick();
+            cfg_wr_en   = 1'b0;
+            cfg_wr_addr = 4'd0;
+            cfg_wr_data = 64'd0;
+            tick();
         end
     endtask
 
@@ -82,11 +129,11 @@ module tb_sdmc_engine64p;
             host_wr_en   = 1'b0;
             host_wr_addr = 4'd0;
             host_wr_data = 64'd0;
+            tick();
         end
     endtask
 
     task run_engine;
-        input [3:0] pid;
         integer guard;
         begin
             if (busy) begin
@@ -94,7 +141,6 @@ module tb_sdmc_engine64p;
                 $finish;
             end
 
-            program_id = pid;
             start = 1'b1;
             tick();
             start = 1'b0;
@@ -103,8 +149,8 @@ module tb_sdmc_engine64p;
             while (!done) begin
                 tick();
                 guard = guard + 1;
-                if (guard > 1000) begin
-                    $display("FAIL timeout engine pid=%0d", pid);
+                if (guard > 1200) begin
+                    $display("FAIL timeout engine program_id=%0d", program_id);
                     $finish;
                 end
             end
@@ -149,6 +195,13 @@ module tb_sdmc_engine64p;
         rst_n = 1'b1;
         repeat (2) tick();
 
+        cfg_write(4'd0, {60'd0, `SDMC_HOST_DEBUG_PERM_SMOKE});
+
+        if (program_id !== `SDMC_PROG_PERM_SMOKE) begin
+            $display("FAIL debug perm config decode");
+            $finish;
+        end
+
         host_write(4'd0, 64'h0123_4567_89ab_cdef);
         host_write(4'd1, 64'h1111_2222_3333_4444);
         host_write(4'd2, 64'h5555_6666_7777_8888);
@@ -161,7 +214,7 @@ module tb_sdmc_engine64p;
                  64'h1111_2222_3333_4444,
                  64'h0123_4567_89ab_cdef});
 
-        run_engine(4'd0);
+        run_engine();
 
         if ({r4,r3,r2,r1,r0} !== ref_state_out) begin
             $display("FAIL engine permutation result");
@@ -170,13 +223,41 @@ module tb_sdmc_engine64p;
             $finish;
         end
 
+        cfg_write(4'd0, {60'd0, `SDMC_HOST_DEBUG_ALU_SMOKE});
+
+        if (program_id !== `SDMC_PROG_ALU_SMOKE) begin
+            $display("FAIL debug alu config decode");
+            $finish;
+        end
+
         host_write(4'd0, 64'hffff_0000_aaaa_5555);
         host_write(4'd1, 64'h00ff_00ff_0f0f_f0f0);
 
-        run_engine(4'd1);
+        run_engine();
 
         if (r3 !== 64'hff00_00ff_a5a5_a5a5) begin
             $display("FAIL engine ALU r3=%h", r3);
+            $finish;
+        end
+
+        cfg_write(4'd0, {60'd0, `SDMC_HOST_CXOF_CHAIN});
+        cfg_write(4'd2, 64'd3);
+        cfg_write(4'd1, {16'd32, 16'd0, 16'd5, 16'd9});
+
+        if (program_id !== `SDMC_PROG_XOF_CHAIN_FAMILY ||
+            use_cxof !== 1'b1 ||
+            chain_count !== 16'd3 ||
+            msg_len !== 16'd9 ||
+            cs_len !== 16'd5 ||
+            out_len !== 16'd32) begin
+            $display("FAIL config visible through engine");
+            $finish;
+        end
+
+        cfg_write(4'd0, {60'd0, `SDMC_HOST_AEAD_DEC});
+
+        if (program_id !== `SDMC_PROG_AEAD_FAMILY || is_decrypt !== 1'b1) begin
+            $display("FAIL AEAD_DEC visible through engine");
             $finish;
         end
 
@@ -185,7 +266,8 @@ module tb_sdmc_engine64p;
         clear = 1'b0;
         tick();
 
-        if (r0 !== 64'd0 || r1 !== 64'd0 || r2 !== 64'd0 || r3 !== 64'd0 || r4 !== 64'd0 ||
+        if (program_id !== `SDMC_PROG_HASH_FAMILY ||
+            r0 !== 64'd0 || r1 !== 64'd0 || r2 !== 64'd0 || r3 !== 64'd0 || r4 !== 64'd0 ||
             p0 !== 64'd0 || p1 !== 64'd0 || p2 !== 64'd0 || p3 !== 64'd0 || p4 !== 64'd0) begin
             $display("FAIL clear");
             $finish;

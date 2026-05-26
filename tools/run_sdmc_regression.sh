@@ -79,6 +79,7 @@ run_one sdmc_uop_sequencer64p /tmp/sdmc_uop_sequencer64p.vvp \
 run_one sdmc_engine64p /tmp/sdmc_engine64p.vvp \
   src/ascon_round.v \
   src/ascon_permutation.v \
+  src/sdmc/sdmc_config_regs.v \
   src/sdmc/sdmc_regfile64.v \
   src/sdmc/sdmc_word_alu64.v \
   src/sdmc/sdmc_ascon_perm_unit64.v \
