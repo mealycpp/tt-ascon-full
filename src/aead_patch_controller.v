@@ -120,6 +120,8 @@ module aead_patch_controller (
     localparam S_TAG_CMP_LO        = 6'd36;
     localparam S_TAG_CMP_HI        = 6'd37;
     localparam S_FINISH            = 6'd38;
+    localparam S_DATA_OUT_PREP     = 6'd39;
+    localparam S_TAG_PREP          = 6'd40;
 
     reg [5:0]   state;
     reg [2:0]   ingress_phase;
@@ -134,6 +136,11 @@ module aead_patch_controller (
     reg [63:0]  w1_buf;
     reg [3:0]   w0_real;
     reg [3:0]   w1_real;
+
+    reg [68:0]  data_emit_w0_q;
+    reg [68:0]  data_emit_w1_q;
+    reg [68:0]  tag_emit_lo_q;
+    reg [68:0]  tag_emit_hi_q;
 
     reg [11:0]  ad_blocks_left;
     reg [11:0]  data_blocks_left;
@@ -462,18 +469,14 @@ module aead_patch_controller (
             S_DATA_EMIT_W0: begin
                 if ((w0_real != 4'd0) && !out_fifo_full) begin
                     out_fifo_push = 1'b1;
-                    out_fifo_din  = {(data_blocks_left == 12'd1) && (w1_real == 4'd0),
-                                     w0_real,
-                                     (rb_x0 ^ w0_buf)};
+                    out_fifo_din  = data_emit_w0_q;
                 end
             end
 
             S_DATA_EMIT_W1: begin
                 if ((w1_real != 4'd0) && !out_fifo_full) begin
                     out_fifo_push = 1'b1;
-                    out_fifo_din  = {(data_blocks_left == 12'd1),
-                                     w1_real,
-                                     (rb_x1 ^ w1_buf)};
+                    out_fifo_din  = data_emit_w1_q;
                 end
             end
 
@@ -522,14 +525,14 @@ module aead_patch_controller (
             S_TAG_EMIT_LO: begin
                 if (!out_fifo_full) begin
                     out_fifo_push = 1'b1;
-                    out_fifo_din  = {1'b0, 4'd8, (rb_x3 ^ key_lo)};
+                    out_fifo_din  = tag_emit_lo_q;
                 end
             end
 
             S_TAG_EMIT_HI: begin
                 if (!out_fifo_full) begin
                     out_fifo_push = 1'b1;
-                    out_fifo_din  = {1'b1, 4'd8, (rb_x4 ^ key_hi)};
+                    out_fifo_din  = tag_emit_hi_q;
                 end
             end
 
@@ -558,6 +561,10 @@ module aead_patch_controller (
             w1_buf                <= 64'd0;
             w0_real               <= 4'd0;
             w1_real               <= 4'd0;
+            data_emit_w0_q         <= 69'd0;
+            data_emit_w1_q         <= 69'd0;
+            tag_emit_lo_q          <= 69'd0;
+            tag_emit_hi_q          <= 69'd0;
 
             ad_blocks_left        <= 12'd0;
             data_blocks_left      <= 12'd0;
@@ -592,6 +599,10 @@ module aead_patch_controller (
             w1_buf                <= 64'd0;
             w0_real               <= 4'd0;
             w1_real               <= 4'd0;
+            data_emit_w0_q         <= 69'd0;
+            data_emit_w1_q         <= 69'd0;
+            tag_emit_lo_q          <= 69'd0;
+            tag_emit_hi_q          <= 69'd0;
 
             ad_blocks_left        <= 12'd0;
             data_blocks_left      <= 12'd0;
@@ -717,6 +728,22 @@ module aead_patch_controller (
             // Scheduler/control side.
             if (busy) begin
                 case (state)
+                    S_DATA_OUT_PREP: begin
+                        data_emit_w0_q <= {(data_blocks_left == 12'd1) && (w1_real == 4'd0),
+                                           w0_real,
+                                           (rb_x0 ^ w0_buf)};
+                        data_emit_w1_q <= {(data_blocks_left == 12'd1),
+                                           w1_real,
+                                           (rb_x1 ^ w1_buf)};
+                        state <= S_DATA_EMIT_W0;
+                    end
+
+                    S_TAG_PREP: begin
+                        tag_emit_lo_q <= {1'b0, 4'd8, (rb_x3 ^ key_lo)};
+                        tag_emit_hi_q <= {1'b1, 4'd8, (rb_x4 ^ key_hi)};
+                        state <= S_TAG_EMIT_LO;
+                    end
+
                     S_KEY_PULL_LO: begin
                         if (cfg_pop) begin
                             key_lo <= cfg_dout;
@@ -908,7 +935,7 @@ module aead_patch_controller (
                                 w1_buf          <= msg_dout;
                                 w1_real         <= 4'd8;
                                 data_bytes_left <= data_bytes_left - 16'd8;
-                                state           <= S_DATA_EMIT_W0;
+                                state <= S_DATA_OUT_PREP;
                             end
                         end else if (data_bytes_left > 16'd0) begin
                             if (msg_pop) begin
@@ -917,7 +944,7 @@ module aead_patch_controller (
                                 w1_real         <= data_bytes_left[3:0];
                                 data_bytes_left <= 16'd0;
                                 data_pad_done   <= 1'b1;
-                                state           <= S_DATA_EMIT_W0;
+                                state <= S_DATA_OUT_PREP;
                             end
                         end else begin
                             if (!data_pad_done) begin
@@ -928,7 +955,7 @@ module aead_patch_controller (
                                 w1_buf  <= 64'd0;
                                 w1_real <= 4'd0;
                             end
-                            state <= S_DATA_EMIT_W0;
+                            state <= S_DATA_OUT_PREP;
                         end
                     end
 
@@ -1003,7 +1030,7 @@ module aead_patch_controller (
                     S_FINAL_WAIT: begin
                         if (perm_done) begin
                             if (is_decrypt_r) state <= S_TAG_CMP_LO;
-                            else              state <= S_TAG_EMIT_LO;
+                            else              state <= S_TAG_PREP;
                         end
                     end
 
