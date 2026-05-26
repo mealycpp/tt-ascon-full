@@ -24,6 +24,10 @@ run_one ascon_perm_round_window /tmp/ascon_perm_round_window.vvp \
   src/ascon_permutation.v \
   test/ascon_perm_round_window/tb_ascon_perm_round_window.v
 
+run_one sdmc_crypto_helpers /tmp/sdmc_crypto_helpers.vvp \
+  src/sdmc/sdmc_crypto_helpers.v \
+  test/sdmc_crypto_helpers/tb_sdmc_crypto_helpers.v
+
 run_one sdmc_hash_family_shell /tmp/sdmc_hash_family_shell.vvp \
   src/sdmc/sdmc_stream_ingress.v \
   src/sdmc/sdmc_stream_egress.v \
