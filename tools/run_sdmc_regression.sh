@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+mkdir -p reports
+
+run_one() {
+  name="$1"
+  out="$2"
+  shift 2
+
+  echo
+  echo "=== $name ==="
+  iverilog -g2012 -o "$out" "$@"
+  vvp "$out" | tee "reports/${name}.log"
+  grep -q "PASS ${name}" "reports/${name}.log"
+  rm -f "$out"
+}
+
+run_one sdmc_fifo /tmp/sdmc_fifo.vvp \
+  src/sdmc/sdmc_fifo.v \
+  test/sdmc_fifo/tb_sdmc_fifo.v
+
+run_one sdmc_word_io /tmp/sdmc_word_io.vvp \
+  src/sdmc/sdmc_byte_to_word.v \
+  src/sdmc/sdmc_word_to_byte.v \
+  test/sdmc_word_io/tb_sdmc_word_io.v
+
+run_one sdmc_word_alu64 /tmp/sdmc_word_alu64.vvp \
+  src/sdmc/sdmc_word_alu64.v \
+  test/sdmc_word_alu64/tb_sdmc_word_alu64.v
+
+run_one sdmc_regfile64 /tmp/sdmc_regfile64.vvp \
+  src/sdmc/sdmc_regfile64.v \
+  test/sdmc_regfile64/tb_sdmc_regfile64.v
+
+run_one sdmc_uop_exec64 /tmp/sdmc_uop_exec64.vvp \
+  src/sdmc/sdmc_regfile64.v \
+  src/sdmc/sdmc_word_alu64.v \
+  src/sdmc/sdmc_uop_exec64.v \
+  test/sdmc_uop_exec64/tb_sdmc_uop_exec64.v
+
+run_one sdmc_perm_unit64 /tmp/sdmc_perm_unit64.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  test/sdmc_perm_unit64/tb_sdmc_perm_unit64.v
+
+run_one sdmc_uop_exec64p /tmp/sdmc_uop_exec64p.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_regfile64.v \
+  src/sdmc/sdmc_word_alu64.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_uop_exec64p.v \
+  test/sdmc_uop_exec64p/tb_sdmc_uop_exec64p.v
+
+run_one sdmc_uop_sequencer64p /tmp/sdmc_uop_sequencer64p.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_regfile64.v \
+  src/sdmc/sdmc_word_alu64.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_uop_exec64p.v \
+  src/sdmc/sdmc_uop_sequencer64p.v \
+  test/sdmc_uop_sequencer64p/tb_sdmc_uop_sequencer64p.v
+
+run_one sdmc_engine64p /tmp/sdmc_engine64p.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_regfile64.v \
+  src/sdmc/sdmc_word_alu64.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_uop_exec64p.v \
+  src/sdmc/sdmc_uop_sequencer64p.v \
+  src/sdmc/sdmc_engine64p.v \
+  test/sdmc_engine64p/tb_sdmc_engine64p.v
+
+echo
+echo "PASS sdmc_regression"
