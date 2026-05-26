@@ -122,6 +122,7 @@ module aead_patch_controller (
     localparam S_FINISH            = 6'd38;
     localparam S_DATA_OUT_PREP     = 6'd39;
     localparam S_TAG_PREP          = 6'd40;
+    localparam S_TAG_CMP_PREP      = 6'd41;
 
     reg [5:0]   state;
     reg [2:0]   ingress_phase;
@@ -142,7 +143,10 @@ module aead_patch_controller (
     reg [68:0]  tag_emit_lo_q;
     reg [68:0]  tag_emit_hi_q;
 
-    reg [11:0]  ad_blocks_left;
+    
+    reg [63:0]  tag_cmp_lo_q;
+    reg [63:0]  tag_cmp_hi_q;
+reg [11:0]  ad_blocks_left;
     reg [11:0]  data_blocks_left;
     reg [15:0]  ad_bytes_left;
     reg [15:0]  data_bytes_left;
@@ -584,6 +588,8 @@ module aead_patch_controller (
             data_patch_op_q       <= PATCH_XOR;
 
             auth_ok               <= 1'b0;
+            tag_cmp_lo_q           <= 64'd0;
+            tag_cmp_hi_q           <= 64'd0;
             busy                  <= 1'b0;
             done                  <= 1'b0;
         end else if (reset_engine) begin
@@ -622,6 +628,8 @@ module aead_patch_controller (
             data_patch_op_q       <= PATCH_XOR;
 
             auth_ok               <= 1'b0;
+            tag_cmp_lo_q           <= 64'd0;
+            tag_cmp_hi_q           <= 64'd0;
             busy                  <= 1'b0;
             done                  <= 1'b0;
         end else begin
@@ -652,6 +660,8 @@ module aead_patch_controller (
                 data_pad_done         <= 1'b0;
 
                 auth_ok               <= 1'b1;
+                tag_cmp_lo_q           <= 64'd0;
+                tag_cmp_hi_q           <= 64'd0;
                 busy                  <= 1'b1;
             end
 
@@ -742,6 +752,13 @@ module aead_patch_controller (
                         tag_emit_lo_q <= {1'b0, 4'd8, (rb_x3 ^ key_lo)};
                         tag_emit_hi_q <= {1'b1, 4'd8, (rb_x4 ^ key_hi)};
                         state <= S_TAG_EMIT_LO;
+                    end
+
+
+                    S_TAG_CMP_PREP: begin
+                        tag_cmp_lo_q <= (rb_x3 ^ key_lo);
+                        tag_cmp_hi_q <= (rb_x4 ^ key_hi);
+                        state <= S_TAG_CMP_LO;
                     end
 
                     S_KEY_PULL_LO: begin
@@ -1029,7 +1046,7 @@ module aead_patch_controller (
 
                     S_FINAL_WAIT: begin
                         if (perm_done) begin
-                            if (is_decrypt_r) state <= S_TAG_CMP_LO;
+                            if (is_decrypt_r) state <= S_TAG_CMP_PREP;
                             else              state <= S_TAG_PREP;
                         end
                     end
@@ -1044,14 +1061,14 @@ module aead_patch_controller (
 
                     S_TAG_CMP_LO: begin
                         if (tag_pop) begin
-                            auth_ok <= auth_ok & (tag_dout == (rb_x3 ^ key_lo));
+                            auth_ok <= auth_ok & (tag_dout == tag_cmp_lo_q);
                             state   <= S_TAG_CMP_HI;
                         end
                     end
 
                     S_TAG_CMP_HI: begin
                         if (tag_pop) begin
-                            auth_ok <= auth_ok & (tag_dout == (rb_x4 ^ key_hi));
+                            auth_ok <= auth_ok & (tag_dout == tag_cmp_hi_q);
                             state   <= S_FINISH;
                         end
                     end
