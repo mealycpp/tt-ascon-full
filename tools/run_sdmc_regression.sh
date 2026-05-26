@@ -24,6 +24,10 @@ run_one ascon_perm_round_window /tmp/ascon_perm_round_window.vvp \
   src/ascon_permutation.v \
   test/ascon_perm_round_window/tb_ascon_perm_round_window.v
 
+run_one sdmc_token_fifo /tmp/sdmc_token_fifo.vvp \
+  src/sdmc/sdmc_token_fifo.v \
+  test/sdmc_token_fifo/tb_sdmc_token_fifo.v
+
 run_one sdmc_config_regs /tmp/sdmc_config_regs.vvp \
   src/sdmc/sdmc_config_regs.v \
   test/sdmc_config_regs/tb_sdmc_config_regs.v
