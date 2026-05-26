@@ -19,6 +19,11 @@ run_one() {
   rm -f "$out"
 }
 
+run_one ascon_perm_round_window /tmp/ascon_perm_round_window.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  test/ascon_perm_round_window/tb_ascon_perm_round_window.v
+
 run_one sdmc_fifo /tmp/sdmc_fifo.vvp \
   src/sdmc/sdmc_fifo.v \
   test/sdmc_fifo/tb_sdmc_fifo.v

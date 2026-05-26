@@ -1,38 +1,31 @@
 /*
  * ASCON permutation engine.
  *
- * Iterates the ASCON-p round function for a parameterizable number of rounds.
- * Standard variants:
- *   p[12]: 12 rounds, used for initialization and finalization
- *   p[8]:  8 rounds,  used for absorption and squeezing in some modes (ASCON-CXOF uses p[12])
+ * Implements ASCON-p[r] using the correct round-constant window:
+ *   p12: f0 e1 d2 c3 b4 a5 96 87 78 69 5a 4b
+ *   p8:              b4 a5 96 87 78 69 5a 4b
  *
- * For ASCON-CXOF (NIST SP 800-232), all permutation calls use p[12].
- *
- * Round constants for p[12] (round 0 .. 11):
- *   0xf0, 0xe1, 0xd2, 0xc3, 0xb4, 0xa5, 0x96, 0x87, 0x78, 0x69, 0x5a, 0x4b
- *
- * Interface:
- *   start: pulse high for one cycle to begin
- *   busy:  high while running
- *   done:  pulses high for one cycle when result is on state_out
+ * External interface stays simple:
+ *   start pulses for one cycle.
+ *   busy is high while rounds execute.
+ *   done pulses for one cycle when state_out is valid.
  */
 
 `default_nettype none
 
 module ascon_permutation (
-    input  wire        clk,
-    input  wire        rst_n,
+    input  wire         clk,
+    input  wire         rst_n,
 
-    input  wire        start,
-    input  wire [3:0]  num_rounds,    // typically 12 for CXOF
+    input  wire         start,
+    input  wire [3:0]   num_rounds,
     input  wire [319:0] state_in,
 
-    output wire [319:0] state_out,
+    output reg  [319:0] state_out,
     output reg          busy,
     output reg          done
 );
 
-    // Round constants table (p[12] uses indices 0..11)
     function [7:0] round_constant;
         input [3:0] r;
         begin
@@ -54,19 +47,30 @@ module ascon_permutation (
         end
     endfunction
 
-    reg [319:0] state_reg;
+    function [3:0] round_start_index;
+        input [3:0] r;
+        begin
+            if (r == 4'd0) begin
+                round_start_index = 4'd0;       // invalid 0 -> p12
+            end else if (r >= 4'd12) begin
+                round_start_index = 4'd0;       // clamp >=12 -> p12
+            end else begin
+                round_start_index = 4'd12 - r;  // p8 starts at 4
+            end
+        end
+    endfunction
 
-    assign state_out = state_reg;
+    reg [319:0] state_reg;
     reg [3:0]   round_idx;
 
     wire [319:0] state_next;
+
     ascon_round u_round (
         .state_in    (state_reg),
         .round_const (round_constant(round_idx)),
         .state_out   (state_next)
     );
 
-    // FSM: IDLE -> RUN -> DONE_PULSE -> IDLE
     localparam S_IDLE = 2'd0;
     localparam S_RUN  = 2'd1;
     localparam S_DONE = 2'd2;
@@ -75,39 +79,53 @@ module ascon_permutation (
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state         <= S_IDLE;
-            round_idx     <= 4'd0;       // constant for GF180 sync-cell mapping;
-                                          // real value is loaded on `start`.
-            busy          <= 1'b0;
-            done          <= 1'b0;
+            state     <= S_IDLE;
+            state_reg <= 320'd0;
+            state_out <= 320'd0;
+            round_idx <= 4'd0;
+            busy      <= 1'b0;
+            done      <= 1'b0;
         end else begin
-            done <= 1'b0;  // default: pulse off
+            done <= 1'b0;
+
             case (state)
                 S_IDLE: begin
                     busy <= 1'b0;
+
                     if (start) begin
                         state_reg <= state_in;
-                        round_idx <= 4'd12 - num_rounds;
+                        round_idx <= round_start_index(num_rounds);
                         busy      <= 1'b1;
                         state     <= S_RUN;
                     end
                 end
+
                 S_RUN: begin
                     state_reg <= state_next;
+
                     if (round_idx == 4'd11) begin
-                        state     <= S_DONE;
+                        state <= S_DONE;
                     end else begin
                         round_idx <= round_idx + 4'd1;
                     end
                 end
+
                 S_DONE: begin
+                    state_out <= state_reg;
                     done      <= 1'b1;
                     busy      <= 1'b0;
                     state     <= S_IDLE;
                 end
-                default: state <= S_IDLE;
+
+                default: begin
+                    state <= S_IDLE;
+                    busy  <= 1'b0;
+                    done  <= 1'b0;
+                end
             endcase
         end
     end
 
 endmodule
+
+`default_nettype wire
