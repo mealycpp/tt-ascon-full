@@ -127,7 +127,7 @@ module sdmc_ascon_perm_unit64 (
 
                 if (start) begin
                     perm_state_in <= {x4_r, x3_r, x2_r, x1_r, x0_r};
-                    perm_rounds   <= (rounds == 4'd0) ? 4'd1 : rounds;
+                    perm_rounds   <= (rounds == 4'd0) ? 4'd12 : rounds;
                     perm_start    <= 1'b1;
                     busy          <= 1'b1;
                 end
