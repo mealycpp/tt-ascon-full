@@ -24,6 +24,14 @@ run_one ascon_perm_round_window /tmp/ascon_perm_round_window.vvp \
   src/ascon_permutation.v \
   test/ascon_perm_round_window/tb_ascon_perm_round_window.v
 
+run_one sdmc_hash_family_shell /tmp/sdmc_hash_family_shell.vvp \
+  src/sdmc/sdmc_stream_ingress.v \
+  src/sdmc/sdmc_stream_egress.v \
+  src/sdmc/sdmc_token_fifo.v \
+  src/sdmc/sdmc_stream_shell.v \
+  src/sdmc/sdmc_hash_family_shell.v \
+  test/sdmc_hash_family_shell/tb_sdmc_hash_family_shell.v
+
 run_one sdmc_stream_shell /tmp/sdmc_stream_shell.vvp \
   src/sdmc/sdmc_stream_ingress.v \
   src/sdmc/sdmc_stream_egress.v \
