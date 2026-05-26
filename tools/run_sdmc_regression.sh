@@ -35,6 +35,13 @@ run_one sdmc_hash256_core_empty /tmp/sdmc_hash256_core_empty.vvp \
   src/sdmc/sdmc_hash256_core.v \
   test/sdmc_hash256_core_empty/tb_sdmc_hash256_core_empty.v
 
+run_one sdmc_hash256_core_msg /tmp/sdmc_hash256_core_msg.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_hash256_core.v \
+  test/sdmc_hash256_core_msg/tb_sdmc_hash256_core_msg.v
+
 run_one sdmc_hash_family_shell /tmp/sdmc_hash_family_shell.vvp \
   src/sdmc/sdmc_stream_ingress.v \
   src/sdmc/sdmc_stream_egress.v \
