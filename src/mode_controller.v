@@ -341,15 +341,7 @@ module mode_controller (
     wire xof_chain_out_pending  = chain_out_valid & chain_out_is_xof;
     wire cxof_chain_out_pending = chain_out_valid & ~chain_out_is_xof;
 
-    wire [63:0] xof_out_block_mux      = (xof_chain_mode | xof_chain_out_pending) ? chain_out_block      : xof_out_block;
-    wire        xof_out_valid_mux      = (xof_chain_mode | xof_chain_out_pending) ? chain_out_valid      : xof_out_valid;
-    wire        xof_out_last_mux       = (xof_chain_mode | xof_chain_out_pending) ? chain_out_last       : xof_out_last;
-    wire [3:0]  xof_out_byte_count_mux = (xof_chain_mode | xof_chain_out_pending) ? chain_out_byte_count : xof_out_byte_count;
 
-    wire [63:0] cxof_out_block_mux      = (cxof_chain_mode | cxof_chain_out_pending) ? chain_out_block      : cxof_out_block;
-    wire        cxof_out_valid_mux      = (cxof_chain_mode | cxof_chain_out_pending) ? chain_out_valid      : cxof_out_valid;
-    wire        cxof_out_last_mux       = (cxof_chain_mode | cxof_chain_out_pending) ? chain_out_last       : cxof_out_last;
-    wire [3:0]  cxof_out_byte_count_mux = (cxof_chain_mode | cxof_chain_out_pending) ? chain_out_byte_count : cxof_out_byte_count;
 
     // -------------------------------------------------------------------------
     // Per-mode patch-command wires

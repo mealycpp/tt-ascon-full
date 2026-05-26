@@ -98,7 +98,6 @@ module cxof_patch_controller (
     reg         msg_empty_r;
     reg [15:0]  cs_total_bits_r;
     reg         cs_empty_r;
-    reg [15:0]  effective_out_length_r;
 
     reg [63:0]  chain_fifo [0:3];
 
@@ -184,7 +183,6 @@ module cxof_patch_controller (
             msg_empty_r            <= 1'b0;
             cs_total_bits_r        <= 16'd0;
             cs_empty_r             <= 1'b0;
-            effective_out_length_r <= 16'd0;
             in_word_ready          <= 1'b0;
             out_block              <= 64'd0;
             out_valid              <= 1'b0;
@@ -229,7 +227,6 @@ module cxof_patch_controller (
                         msg_empty_r            <= (msg_total_bytes == 16'd0);
                         cs_total_bits_r        <= cs_total_bits;
                         cs_empty_r             <= (cs_total_bits == 16'd0);
-                        effective_out_length_r <= effective_out_length;
 
                         out_remaining        <= chain_pass_out_length;
                         passes_left          <= requested_passes;
