@@ -27,41 +27,46 @@ module sdmc_aead128_core (
     output reg                      auth_ok
 );
 
-    localparam S_IDLE        = 5'd0;
-    localparam S_KEY0        = 5'd1;
-    localparam S_KEY1        = 5'd2;
-    localparam S_NONCE0      = 5'd3;
-    localparam S_NONCE1      = 5'd4;
+    localparam S_IDLE        = 6'd0;
+    localparam S_KEY0        = 6'd1;
+    localparam S_KEY1        = 6'd2;
+    localparam S_NONCE0      = 6'd3;
+    localparam S_NONCE1      = 6'd4;
 
-    localparam S_LOAD_X0     = 5'd5;
-    localparam S_LOAD_X1     = 5'd6;
-    localparam S_LOAD_X2     = 5'd7;
-    localparam S_LOAD_X3     = 5'd8;
-    localparam S_LOAD_X4     = 5'd9;
+    localparam S_LOAD_X0     = 6'd5;
+    localparam S_LOAD_X1     = 6'd6;
+    localparam S_LOAD_X2     = 6'd7;
+    localparam S_LOAD_X3     = 6'd8;
+    localparam S_LOAD_X4     = 6'd9;
 
-    localparam S_INIT_START  = 5'd10;
-    localparam S_INIT_WAIT   = 5'd11;
+    localparam S_INIT_START  = 6'd10;
+    localparam S_INIT_WAIT   = 6'd11;
 
-    localparam S_INIT_X3     = 5'd12;
-    localparam S_INIT_X4_DOM = 5'd13;
-    localparam S_DATA_PAD    = 5'd14;
-    localparam S_FINAL_X2    = 5'd15;
-    localparam S_FINAL_X3    = 5'd16;
+    localparam S_INIT_X3     = 6'd12;
+    localparam S_INIT_X4_DOM = 6'd13;
+    localparam S_DATA_PAD    = 6'd14;
+    localparam S_FINAL_X2    = 6'd15;
+    localparam S_FINAL_X3    = 6'd16;
 
-    localparam S_FINAL_START = 5'd17;
-    localparam S_FINAL_WAIT  = 5'd18;
+    localparam S_FINAL_START = 6'd17;
+    localparam S_FINAL_WAIT  = 6'd18;
 
-    localparam S_TAG0        = 5'd19;
-    localparam S_TAG1        = 5'd20;
-    localparam S_DONE        = 5'd21;
-    localparam S_ERR         = 5'd22;
-    localparam S_MSG_WAIT    = 5'd23;
-    localparam S_MSG_ABSORB  = 5'd24;
-    localparam S_MSG_EMIT    = 5'd25;
-    localparam S_TAGIN0      = 5'd26;
-    localparam S_TAGIN1      = 5'd27;
+    localparam S_TAG0        = 6'd19;
+    localparam S_TAG1        = 6'd20;
+    localparam S_DONE        = 6'd21;
+    localparam S_ERR         = 6'd22;
+    localparam S_MSG_WAIT    = 6'd23;
+    localparam S_MSG_ABSORB  = 6'd24;
+    localparam S_MSG_EMIT    = 6'd25;
+    localparam S_TAGIN0      = 6'd26;
+    localparam S_TAGIN1      = 6'd27;
+    localparam S_WAIT_KEY1   = 6'd28;
+    localparam S_WAIT_NONCE0 = 6'd29;
+    localparam S_WAIT_NONCE1 = 6'd30;
+    localparam S_WAIT_MSG    = 6'd31;
+    localparam S_WAIT_TAG1   = 6'd32;
 
-    reg [4:0] state;
+    reg [5:0] state;
 
     reg [63:0] key0_q;
     reg [63:0] key1_q;
@@ -260,9 +265,13 @@ module sdmc_aead128_core (
                         end else begin
                             key0_q <= tok_data;
                             in_pop <= 1'b1;
-                            state  <= S_KEY1;
+                            state  <= S_WAIT_KEY1;
                         end
                     end
+                end
+
+                S_WAIT_KEY1: begin
+                    state <= S_KEY1;
                 end
 
                 S_KEY1: begin
@@ -273,9 +282,13 @@ module sdmc_aead128_core (
                         end else begin
                             key1_q <= tok_data;
                             in_pop <= 1'b1;
-                            state  <= S_NONCE0;
+                            state  <= S_WAIT_NONCE0;
                         end
                     end
+                end
+
+                S_WAIT_NONCE0: begin
+                    state <= S_NONCE0;
                 end
 
                 S_NONCE0: begin
@@ -286,9 +299,13 @@ module sdmc_aead128_core (
                         end else begin
                             nonce0_q <= tok_data;
                             in_pop   <= 1'b1;
-                            state    <= S_NONCE1;
+                            state    <= S_WAIT_NONCE1;
                         end
                     end
+                end
+
+                S_WAIT_NONCE1: begin
+                    state <= S_NONCE1;
                 end
 
                 S_NONCE1: begin
@@ -381,9 +398,13 @@ module sdmc_aead128_core (
                             msg_word_q  <= tok_data;
                             msg_bytes_q <= tok_bytes;
                             in_pop      <= 1'b1;
-                            state       <= S_MSG_ABSORB;
+                            state       <= S_WAIT_MSG;
                         end
                     end
+                end
+
+                S_WAIT_MSG: begin
+                    state <= S_MSG_ABSORB;
                 end
 
                 // Last partial data block, no p8 on last block.
@@ -492,9 +513,13 @@ module sdmc_aead128_core (
                         end else begin
                             auth_ok <= auth_ok & (tok_data == (p3 ^ key0_q));
                             in_pop  <= 1'b1;
-                            state   <= S_TAGIN1;
+                            state   <= S_WAIT_TAG1;
                         end
                     end
+                end
+
+                S_WAIT_TAG1: begin
+                    state <= S_TAGIN1;
                 end
 
                 S_TAGIN1: begin

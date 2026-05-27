@@ -41,17 +41,17 @@ test/sdmc_cxof_chain_family_core_full/tb_sdmc_cxof_chain_family_core_full.v:145:
 === sdmc_aead128_empty ===
 VCD info: dumpfile tb_sdmc_aead128_empty.vcd opened for output.
 PASS sdmc_aead128_empty
-test/sdmc_aead128_empty/tb_sdmc_aead128_empty.v:165: $finish called at 620000 (1ps)
+test/sdmc_aead128_empty/tb_sdmc_aead128_empty.v:165: $finish called at 650000 (1ps)
 
 === sdmc_aead128_abc ===
 VCD info: dumpfile tb_sdmc_aead128_abc.vcd opened for output.
 PASS sdmc_aead128_abc
-test/sdmc_aead128_abc/tb_sdmc_aead128_abc.v:170: $finish called at 640000 (1ps)
+test/sdmc_aead128_abc/tb_sdmc_aead128_abc.v:170: $finish called at 680000 (1ps)
 
 === sdmc_aead128_dec_abc ===
 VCD info: dumpfile tb_sdmc_aead128_dec_abc.vcd opened for output.
 PASS sdmc_aead128_dec_abc
-test/sdmc_aead128_dec_abc/tb_sdmc_aead128_dec_abc.v:178: $finish called at 1270000 (1ps)
+test/sdmc_aead128_dec_abc/tb_sdmc_aead128_dec_abc.v:178: $finish called at 1370000 (1ps)
 
 === sdmc_crypto_top_hash_empty ===
 VCD info: dumpfile tb_sdmc_crypto_top_hash_empty.vcd opened for output.
@@ -62,6 +62,16 @@ test/sdmc_crypto_top_hash_empty/tb_sdmc_crypto_top_hash_empty.v:210: $finish cal
 VCD info: dumpfile tb_sdmc_crypto_top_hash_abc.vcd opened for output.
 PASS sdmc_crypto_top_hash_abc
 test/sdmc_crypto_top_hash_abc/tb_sdmc_crypto_top_hash_abc.v:231: $finish called at 1330000 (1ps)
+
+=== sdmc_crypto_top_xof_abc ===
+VCD info: dumpfile tb_sdmc_crypto_top_xof_abc.vcd opened for output.
+PASS sdmc_crypto_top_xof_abc
+test/sdmc_crypto_top_xof_abc/tb_sdmc_crypto_top_xof_abc.v:231: $finish called at 1350000 (1ps)
+
+=== sdmc_crypto_top_aead_abc ===
+VCD info: dumpfile tb_sdmc_crypto_top_aead_abc.vcd opened for output.
+PASS sdmc_crypto_top_aead_abc
+test/sdmc_crypto_top_aead_abc/tb_sdmc_crypto_top_aead_abc.v:258: $finish called at 1620000 (1ps)
 
 === sdmc_xof_family_core_empty ===
 VCD info: dumpfile tb_sdmc_xof_family_core_empty.vcd opened for output.
