@@ -119,7 +119,6 @@ module sdmc_crypto_top #(
     wire sel_aead = (program_id == `SDMC_PROG_AEAD_FAMILY);
 
     wire hash_start = start & sel_hash;
-    wire xof_start  = start & sel_xof;
     wire aead_start = start & sel_aead;
 
     wire [`SDMC_TOKEN_W-1:0] hash_out_token;
@@ -147,35 +146,14 @@ module sdmc_crypto_top #(
         .error     (hash_error)
     );
 
-    wire [`SDMC_TOKEN_W-1:0] xof_out_token;
-    wire                     xof_out_push;
-    wire                     xof_out_full;
-    wire                     xof_in_pop;
-    wire                     xof_busy;
-    wire                     xof_done;
-    wire                     xof_error;
-
-    sdmc_xof_chain_family_core u_xof (
-        .clk         (clk),
-        .rst_n       (rst_n),
-        .clear       (clear),
-        .start       (xof_start),
-        .use_hash    (1'b0),
-        .use_cxof    (use_cxof),
-        .chain_count (chain_count),
-        .msg_len     (msg_len),
-        .cs_len      (cs_len),
-        .out_len     (out_len),
-        .in_token    (core_in_token),
-        .in_empty    (core_in_empty),
-        .in_pop      (xof_in_pop),
-        .out_token   (xof_out_token),
-        .out_push    (xof_out_push),
-        .out_full    (xof_out_full),
-        .busy        (xof_busy),
-        .done        (xof_done),
-        .error       (xof_error)
-    );
+    // LWC GF180 cut: XOF/CXOF RTL is preserved in the repository but not
+    // instantiated in this reduced GDS top. XOF program IDs return error.
+    wire [`SDMC_TOKEN_W-1:0] xof_out_token = {`SDMC_TOKEN_W{1'b0}};
+    wire                     xof_out_push  = 1'b0;
+    wire                     xof_in_pop    = 1'b0;
+    wire                     xof_busy      = 1'b0;
+    wire                     xof_done      = sel_xof & start;
+    wire                     xof_error     = sel_xof & start;
 
     wire [`SDMC_TOKEN_W-1:0] aead_out_token;
     wire                     aead_out_push;
@@ -225,7 +203,6 @@ module sdmc_crypto_top #(
                    1'b0;
 
     assign hash_out_full = sel_hash ? core_out_full : 1'b1;
-    assign xof_out_full  = sel_xof  ? core_out_full : 1'b1;
     assign aead_out_full = sel_aead ? core_out_full : 1'b1;
 
     assign busy = hash_busy | xof_busy | aead_busy;
