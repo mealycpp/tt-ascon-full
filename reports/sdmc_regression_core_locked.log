@@ -1,0 +1,136 @@
+
+=== ascon_perm_round_window ===
+VCD info: dumpfile tb_ascon_perm_round_window.vcd opened for output.
+PASS ascon_perm_round_window
+test/ascon_perm_round_window/tb_ascon_perm_round_window.v:135: $finish called at 220000 (1ps)
+
+=== sdmc_crypto_helpers ===
+PASS sdmc_crypto_helpers
+test/sdmc_crypto_helpers/tb_sdmc_crypto_helpers.v:43: $finish called at 9000 (1ps)
+
+=== sdmc_hash256_core_empty ===
+VCD info: dumpfile tb_sdmc_hash256_core_empty.vcd opened for output.
+PASS sdmc_hash256_core_empty
+test/sdmc_hash256_core_empty/tb_sdmc_hash256_core_empty.v:127: $finish called at 1130000 (1ps)
+
+=== sdmc_hash256_core_msg ===
+VCD info: dumpfile tb_sdmc_hash256_core_msg.vcd opened for output.
+PASS sdmc_hash256_core_msg
+test/sdmc_hash256_core_msg/tb_sdmc_hash256_core_msg.v:137: $finish called at 1140000 (1ps)
+
+=== sdmc_xof_family_core_64 ===
+VCD info: dumpfile tb_sdmc_xof_family_core_64.vcd opened for output.
+PASS sdmc_xof_family_core_64
+test/sdmc_xof_family_core_64/tb_sdmc_xof_family_core_64.v:148: $finish called at 1900000 (1ps)
+
+=== sdmc_xof_family_core_cxof ===
+VCD info: dumpfile tb_sdmc_xof_family_core_cxof.vcd opened for output.
+PASS sdmc_xof_family_core_cxof
+test/sdmc_xof_family_core_cxof/tb_sdmc_xof_family_core_cxof.v:202: $finish called at 4740000 (1ps)
+
+=== sdmc_xof_chain_family_core ===
+VCD info: dumpfile tb_sdmc_xof_chain_family_core.vcd opened for output.
+PASS sdmc_xof_chain_family_core
+test/sdmc_xof_chain_family_core/tb_sdmc_xof_chain_family_core.v:142: $finish called at 3180000 (1ps)
+
+=== sdmc_cxof_chain_family_core_full ===
+VCD info: dumpfile tb_sdmc_cxof_chain_family_core_full.vcd opened for output.
+PASS sdmc_cxof_chain_family_core_full
+test/sdmc_cxof_chain_family_core_full/tb_sdmc_cxof_chain_family_core_full.v:145: $finish called at 11430000 (1ps)
+
+=== sdmc_aead128_empty ===
+VCD info: dumpfile tb_sdmc_aead128_empty.vcd opened for output.
+PASS sdmc_aead128_empty
+test/sdmc_aead128_empty/tb_sdmc_aead128_empty.v:165: $finish called at 620000 (1ps)
+
+=== sdmc_aead128_abc ===
+VCD info: dumpfile tb_sdmc_aead128_abc.vcd opened for output.
+PASS sdmc_aead128_abc
+test/sdmc_aead128_abc/tb_sdmc_aead128_abc.v:170: $finish called at 640000 (1ps)
+
+=== sdmc_aead128_dec_abc ===
+VCD info: dumpfile tb_sdmc_aead128_dec_abc.vcd opened for output.
+PASS sdmc_aead128_dec_abc
+test/sdmc_aead128_dec_abc/tb_sdmc_aead128_dec_abc.v:178: $finish called at 1270000 (1ps)
+
+=== sdmc_xof_family_core_empty ===
+VCD info: dumpfile tb_sdmc_xof_family_core_empty.vcd opened for output.
+PASS sdmc_xof_family_core_empty
+test/sdmc_xof_family_core_empty/tb_sdmc_xof_family_core_empty.v:131: $finish called at 1130000 (1ps)
+
+=== sdmc_xof_family_core_msg ===
+VCD info: dumpfile tb_sdmc_xof_family_core_msg.vcd opened for output.
+PASS sdmc_xof_family_core_msg
+test/sdmc_xof_family_core_msg/tb_sdmc_xof_family_core_msg.v:141: $finish called at 1140000 (1ps)
+
+=== sdmc_hash_family_shell ===
+VCD info: dumpfile tb_sdmc_hash_family_shell.vcd opened for output.
+PASS sdmc_hash_family_shell
+test/sdmc_hash_family_shell/tb_sdmc_hash_family_shell.v:213: $finish called at 260000 (1ps)
+
+=== sdmc_stream_shell ===
+VCD info: dumpfile tb_sdmc_stream_shell.vcd opened for output.
+PASS sdmc_stream_shell
+test/sdmc_stream_shell/tb_sdmc_stream_shell.v:235: $finish called at 250000 (1ps)
+
+=== sdmc_stream_egress ===
+VCD info: dumpfile tb_sdmc_stream_egress.vcd opened for output.
+PASS sdmc_stream_egress
+test/sdmc_stream_egress/tb_sdmc_stream_egress.v:149: $finish called at 390000 (1ps)
+
+=== sdmc_token_fifo ===
+VCD info: dumpfile tb_sdmc_token_fifo.vcd opened for output.
+PASS sdmc_token_fifo
+test/sdmc_token_fifo/tb_sdmc_token_fifo.v:156: $finish called at 310000 (1ps)
+
+=== sdmc_config_regs ===
+VCD info: dumpfile tb_sdmc_config_regs.vcd opened for output.
+PASS sdmc_config_regs
+test/sdmc_config_regs/tb_sdmc_config_regs.v:138: $finish called at 290000 (1ps)
+
+=== sdmc_fifo ===
+VCD info: dumpfile tb_sdmc_fifo.vcd opened for output.
+PASS sdmc_fifo
+test/sdmc_fifo/tb_sdmc_fifo.v:147: $finish called at 180000 (1ps)
+
+=== sdmc_word_io ===
+VCD info: dumpfile tb_sdmc_word_io.vcd opened for output.
+PASS sdmc_word_io
+test/sdmc_word_io/tb_sdmc_word_io.v:176: $finish called at 320000 (1ps)
+
+=== sdmc_word_alu64 ===
+VCD info: dumpfile tb_sdmc_word_alu64.vcd opened for output.
+PASS sdmc_word_alu64
+test/sdmc_word_alu64/tb_sdmc_word_alu64.v:121: $finish called at 360000 (1ps)
+
+=== sdmc_regfile64 ===
+VCD info: dumpfile tb_sdmc_regfile64.vcd opened for output.
+PASS sdmc_regfile64
+test/sdmc_regfile64/tb_sdmc_regfile64.v:151: $finish called at 200000 (1ps)
+
+=== sdmc_uop_exec64 ===
+VCD info: dumpfile tb_sdmc_uop_exec64.vcd opened for output.
+PASS sdmc_uop_exec64
+test/sdmc_uop_exec64/tb_sdmc_uop_exec64.v:205: $finish called at 430000 (1ps)
+
+=== sdmc_perm_unit64 ===
+VCD info: dumpfile tb_sdmc_perm_unit64.vcd opened for output.
+PASS sdmc_perm_unit64
+test/sdmc_perm_unit64/tb_sdmc_perm_unit64.v:268: $finish called at 810000 (1ps)
+
+=== sdmc_uop_exec64p ===
+VCD info: dumpfile tb_sdmc_uop_exec64p.vcd opened for output.
+PASS sdmc_uop_exec64p
+test/sdmc_uop_exec64p/tb_sdmc_uop_exec64p.v:234: $finish called at 950000 (1ps)
+
+=== sdmc_uop_sequencer64p ===
+VCD info: dumpfile tb_sdmc_uop_sequencer64p.vcd opened for output.
+PASS sdmc_uop_sequencer64p
+test/sdmc_uop_sequencer64p/tb_sdmc_uop_sequencer64p.v:207: $finish called at 1550000 (1ps)
+
+=== sdmc_engine64p ===
+VCD info: dumpfile tb_sdmc_engine64p.vcd opened for output.
+PASS sdmc_engine64p
+test/sdmc_engine64p/tb_sdmc_engine64p.v:277: $finish called at 1740000 (1ps)
+
+PASS sdmc_regression
