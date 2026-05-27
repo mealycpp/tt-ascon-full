@@ -12,29 +12,12 @@ project:
   top_module:  "tt_um_mealycpp_ascon_sdmc_uart"
 
   source_files:
-    - "project.v"
-    - "ascon_permutation.v"
     - "ascon_round.v"
-    - "hash_controller.v"
-    - "xof_controller.v"
-    - "cxof_controller.v"
-    - "aead_controller.v"
-    - "mode_controller.v"
+    - "ascon_permutation.v"
     - "byte_fifo.v"
-    - "byte_to_word_packer.v"
-    - "word_to_byte_unpacker.v"
     - "uart_rx.v"
     - "uart_tx.v"
-    - "baud_gen.v"
-    - "uart_bridge.v"
     - "protocol_parser.v"
-    - "lane_router.v"
-    - ascon_sponge_core.v
-    - hash_patch_controller.v
-    - xof_patch_controller.v
-    - cxof_patch_controller.v
-    - aead_patch_controller.v
-
     - "sdmc/sdmc_fifo.v"
     - "sdmc/sdmc_token_fifo.v"
     - "sdmc/sdmc_stream_ingress.v"
@@ -47,11 +30,9 @@ project:
     - "sdmc/sdmc_xof_chain_family_core.v"
     - "sdmc/sdmc_aead128_core.v"
     - "sdmc/sdmc_crypto_top.v"
-
-    - "project_sdmc_top.v"
-
     - "sdmc/sdmc_uart_token_bridge.v"
     - "project_sdmc_uart_top.v"
+
 pinout:
   ui[0]: "uart0_rx_cmd"
   ui[1]: "uart1_rx_key_nonce_ad_cs"
