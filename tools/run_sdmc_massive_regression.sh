@@ -1,3 +1,8 @@
+
+echo
+echo "=== sdmc_crypto_top_syntax ==="
+./tools/check_sdmc_crypto_top_syntax.sh
+
 #!/usr/bin/env bash
 set -euo pipefail
 
