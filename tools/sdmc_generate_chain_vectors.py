@@ -28,7 +28,8 @@ CHAIN_COUNTS = [1, 2, 5, 16]
 OUT_LENS = [16, 32, 64]
 
 def run(cmd):
-    return subprocess.check_output(cmd, text=True).strip().splitlines()[-1].strip()
+    out = subprocess.check_output(cmd, text=True)
+    return out.strip().splitlines()[-1].strip()
 
 def xof(out_len, msg_hex):
     return run([str(XOF), str(out_len), msg_hex])
@@ -51,11 +52,17 @@ def cxof_chain(count, out_len, cs_hex, msg_hex):
     return cur
 
 def main():
+    if not XOF.exists():
+        raise SystemExit(f"missing {XOF}")
+    if not CXOF.exists():
+        raise SystemExit(f"missing {CXOF}")
+
     vectors = []
 
     for msg_name, msg_hex in MSG_CASES.items():
         for count in CHAIN_COUNTS:
             for out_len in OUT_LENS:
+                expected = xof_chain(count, out_len, msg_hex)
                 vectors.append({
                     "family": "xof_chain",
                     "name": f"xof_chain_{msg_name}_c{count}_out{out_len}",
@@ -65,13 +72,15 @@ def main():
                     "cs_hex": "",
                     "chain_count": count,
                     "out_len": out_len,
-                    "expected_hex": xof_chain(count, out_len, msg_hex),
+                    "expected_hex": expected,
+                    "count1_equals_primitive": expected == xof(out_len, msg_hex) if count == 1 else None,
                 })
 
     for cs_name, cs_hex in CS_CASES.items():
         for msg_name, msg_hex in MSG_CASES.items():
             for count in CHAIN_COUNTS:
                 for out_len in OUT_LENS:
+                    expected = cxof_chain(count, out_len, cs_hex, msg_hex)
                     vectors.append({
                         "family": "cxof_chain",
                         "name": f"cxof_chain_{cs_name}_{msg_name}_c{count}_out{out_len}",
@@ -81,29 +90,23 @@ def main():
                         "cs_hex": cs_hex,
                         "chain_count": count,
                         "out_len": out_len,
-                        "expected_hex": cxof_chain(count, out_len, cs_hex, msg_hex),
+                        "expected_hex": expected,
+                        "count1_equals_primitive": expected == cxof(out_len, cs_hex, msg_hex) if count == 1 else None,
                     })
-
-    # Add explicit equivalence checks as metadata:
-    # count=1 should equal primitive XOF/CXOF.
-    for v in vectors:
-        if v["chain_count"] == 1:
-            if v["family"] == "xof_chain":
-                primitive = xof(v["out_len"], v["msg_hex"])
-            else:
-                primitive = cxof(v["out_len"], v["cs_hex"], v["msg_hex"])
-            v["count1_equals_primitive"] = (primitive == v["expected_hex"])
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({
-        "description": "Generated SDMC XOF-chain and CXOF-chain vectors using local ascon-c reference CLIs. Intermediate chain outputs are 32 bytes; final output uses out_len.",
+        "description": "Generated SDMC XOF-chain and CXOF-chain vectors using local ascon-c reference CLIs.",
         "chain_rule": "cur=msg; for i in 1..chain_count: cur=XOF/CXOF(32 bytes, cur) except final iteration uses requested out_len.",
         "vectors": vectors,
     }, indent=2) + "\n")
 
+    eq = [v for v in vectors if v["chain_count"] == 1]
+    if not all(v["count1_equals_primitive"] for v in eq):
+        raise SystemExit("FAIL chain_count=1 equivalence")
+
     print(f"Wrote {OUT}")
     print(f"vectors={len(vectors)}")
-    assert all(v.get("count1_equals_primitive", True) for v in vectors), "chain_count=1 equivalence failed"
     print("PASS chain_count_1_equivalence")
 
 if __name__ == "__main__":
