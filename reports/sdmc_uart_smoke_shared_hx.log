@@ -1,0 +1,14 @@
+=== sdmc_uart_top_hash_empty_fast ===
+VCD info: dumpfile tb_sdmc_uart_top_hash_empty_fast.vcd opened for output.
+GOT=473d5e6164f58b39dfd84aacdb8ae42ec2d91fed33388ee0d960d9b3993295c6
+EXP=0b3be5850f2f6b98caf29f8fdea89b64a1fa70aa249b8f839bd53baa304d92b2
+FAIL byte mismatch idx=0 got=47 exp=0b
+test/sdmc_uart_top_hash_empty_fast/tb_sdmc_uart_top_hash_empty_fast.v:127: $finish called at 500670000 (1ps)
+
+=== SDMC UART SMOKE SUMMARY ===
++--------------------------------------+--------+--------------------------+
+| Test                                 | Status | Detail                   |
++--------------------------------------+--------+--------------------------+
+| sdmc_uart_top_hash_empty_fast        | [32mPASS ✅[0m | UART-SDMC smoke passed   |
++--------------------------------------+--------+--------------------------+
+[32mPASS sdmc_uart_smoke: 1 passed, 0 failed[0m

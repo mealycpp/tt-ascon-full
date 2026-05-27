@@ -8,6 +8,7 @@ module sdmc_xof_chain_family_core (
     input  wire                     clear,
 
     input  wire                     start,
+    input  wire                     use_hash,
     input  wire                     use_cxof,
     input  wire [15:0]              chain_count,
     input  wire [15:0]              msg_len,
@@ -81,7 +82,7 @@ module sdmc_xof_chain_family_core (
     wire [`SDMC_TOKEN_W-1:0] internal_msg_token =
         { (feed_idx == 3'd3), `SDMC_TOK_MSG, 4'd8, feed_word };
 
-    wire feeding_cached_cs = (!pass0_q) && use_cxof && (cs_replay_idx < cs_cache_count);
+    wire feeding_cached_cs = (!pass0_q) && (!use_hash) && use_cxof && (cs_replay_idx < cs_cache_count);
     wire [`SDMC_TOKEN_W-1:0] cached_cs_token = cs_cache[cs_replay_idx[CS_CACHE_AW-1:0]];
 
     assign inner_in_token = pass0_q ? in_token :
@@ -102,10 +103,11 @@ module sdmc_xof_chain_family_core (
         .clear       (clear),
 
         .start       (inner_start),
-        .use_cxof    (use_cxof),
+        .use_hash    (use_hash),
+        .use_cxof    ((!use_hash) && use_cxof),
         .chain_count (16'd1),
-        .cs_len      (cs_len),
-        .out_len     (final_pass ? out_len : 16'd32),
+        .cs_len      (use_hash ? 16'd0 : cs_len),
+        .out_len     (use_hash ? 16'd32 : (final_pass ? out_len : 16'd32)),
         .msg_len     (pass0_q ? msg_len : 16'd32),
 
         .in_token    (inner_in_token),

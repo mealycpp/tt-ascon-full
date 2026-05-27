@@ -1,6 +1,8 @@
+
 === uart_hx_top_syntax ===
 === sdmc_uart_top_syntax ===
 PASS sdmc_uart_top_syntax
+
 === uart_hx_hash_smoke ===
 === sdmc_uart_top_hash_empty_fast ===
 VCD info: dumpfile tb_sdmc_uart_top_hash_empty_fast.vcd opened for output.
@@ -16,10 +18,12 @@ test/sdmc_uart_top_hash_empty_fast/tb_sdmc_uart_top_hash_empty_fast.v:127: $fini
 | sdmc_uart_top_hash_empty_fast        | [32mPASS ✅[0m | UART-SDMC smoke passed   |
 +--------------------------------------+--------+--------------------------+
 [32mPASS sdmc_uart_smoke: 1 passed, 0 failed[0m
+
 === aead_official_matrix_preserved ===
 Generated 87 AEAD official matrix tests
 Manifest: /home/hadedy/tt-ascon-full/test/sdmc_aead128_official_matrix/manifest.txt
 PASS sdmc_aead_official_matrix
+
 === massive_regression ===
 === SDMC MASSIVE REGRESSION ===
 
@@ -2190,6 +2194,7 @@ PASS sdmc_gds_risk_audit
 +---------------+--------+--------------------+
 
 PASS sdmc_massive_regression
+
 === gds_filelist_audit ===
 === SDMC GDS FILELIST AUDIT ===
 
@@ -2231,6 +2236,7 @@ PASS sdmc_massive_regression
 | src backup files                                                  | [32mPASS ✅[0m | no backup/generated RTL under src        |
 +-------------------------------------------------------------------+--------+------------------------------------------+
 [32mPASS sdmc_gds_filelist_audit: 0 failures, 0 warning(s)[0m
+
 === gds_risk_audit ===
 === SDMC GDS RISK AUDIT ===
 
@@ -2276,6 +2282,7 @@ PASS sdmc_gds_risk_audit
 | Failures      | PASS   | 0 failure(s)       |
 | Overall audit | PASS   | ready for GDS gate |
 +---------------+--------+--------------------+
+
 === SDMC AGGRESSIVE REGRESSION SUMMARY ===
 uart_hx_top_syntax	PASS
 uart_hx_hash_smoke	PASS
@@ -2283,4 +2290,5 @@ aead_official_matrix_preserved	PASS
 massive_regression	PASS
 gds_filelist_audit	PASS
 gds_risk_audit	PASS
+
 PASS sdmc_aggressive_regression: 6 passed, 0 failed

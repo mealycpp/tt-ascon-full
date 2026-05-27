@@ -9,6 +9,7 @@ module sdmc_xof_family_core (
     input  wire                     clear,
 
     input  wire                     start,
+    input  wire                     use_hash,
     input  wire                     use_cxof,
     input  wire [15:0]              chain_count,
     input  wire [15:0]              cs_len,

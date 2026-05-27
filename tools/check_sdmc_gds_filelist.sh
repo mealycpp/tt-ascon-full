@@ -1,3 +1,13 @@
+
+is_preserved_non_gds_rtl() {
+  case "$1" in
+    src/sdmc/sdmc_hash256_core.v) return 0 ;;
+    src/sdmc/sdmc_aead128_core.v) return 0 ;;
+    src/sdmc/sdmc_crypto_top.v) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 #!/usr/bin/env bash
 set -u -o pipefail
 
@@ -77,8 +87,12 @@ for f in "${REQUIRED[@]}"; do
   if [ "$seen" -eq 1 ]; then
     printf "%s\tPASS\treferenced by manifest/source list\n" "$f" >> "$RESULTS"
   else
-    printf "%s\tWARN\tnot referenced in common manifest/source lists\n" "$f" >> "$RESULTS"
-    warn=$((warn + 1))
+    if is_preserved_non_gds_rtl "$f"; then
+      printf "%s\tPASS\tpreserved RTL, intentionally excluded from shared-HX GDS top\n" "$f" >> "$RESULTS"
+    else
+      printf "%s\tWARN\tnot referenced in common manifest/source lists\n" "$f" >> "$RESULTS"
+      warn=$((warn + 1))
+    fi
   fi
 done
 
