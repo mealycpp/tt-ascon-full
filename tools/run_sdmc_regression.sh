@@ -79,6 +79,13 @@ run_one sdmc_aead128_empty /tmp/sdmc_aead128_empty.vvp \
   src/sdmc/sdmc_aead128_core.v \
   test/sdmc_aead128_empty/tb_sdmc_aead128_empty.v
 
+run_one sdmc_aead128_ad1 /tmp/sdmc_aead128_ad1.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_aead128_core.v \
+  test/sdmc_aead128_ad1/tb_sdmc_aead128_ad1.v
+
 run_one sdmc_aead128_abc /tmp/sdmc_aead128_abc.vvp \
   src/ascon_round.v \
   src/ascon_permutation.v \

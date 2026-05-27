@@ -65,6 +65,12 @@ module sdmc_aead128_core (
     localparam S_WAIT_NONCE1 = 6'd30;
     localparam S_WAIT_MSG    = 6'd31;
     localparam S_WAIT_TAG1   = 6'd32;
+    localparam S_AD_DOMSEP    = 6'd38;
+    localparam S_AD_WAIT     = 6'd33;
+    localparam S_WAIT_AD     = 6'd34;
+    localparam S_AD_ABSORB   = 6'd35;
+    localparam S_AD_P8_START = 6'd36;
+    localparam S_AD_P8_WAIT  = 6'd37;
 
     reg [5:0] state;
 
@@ -75,6 +81,8 @@ module sdmc_aead128_core (
     reg [63:0] msg_word_q;
     reg [3:0]  msg_bytes_q;
     reg [63:0] ct_word_q;
+    reg [63:0] ad_word_q;
+    reg [3:0]  ad_bytes_q;
 
     wire        tok_last  = in_token[`SDMC_TOKEN_LAST_BIT];
     wire [3:0]  tok_kind  = in_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
@@ -125,6 +133,7 @@ module sdmc_aead128_core (
     wire        perm_rd_valid;
 
     reg        perm_start;
+    reg [3:0]  perm_rounds_q;
     wire       perm_ready;
     wire       perm_busy;
     wire       perm_done;
@@ -150,7 +159,7 @@ module sdmc_aead128_core (
         .host_rd_valid (perm_rd_valid),
 
         .start         (perm_start),
-        .rounds        (`SDMC_ASCON_P12),
+        .rounds        (perm_rounds_q),
 
         .host_ready    (perm_ready),
         .busy          (perm_busy),
@@ -186,6 +195,8 @@ module sdmc_aead128_core (
             msg_word_q   <= 64'd0;
             msg_bytes_q  <= 4'd0;
             ct_word_q    <= 64'd0;
+            ad_word_q    <= 64'd0;
+            ad_bytes_q   <= 4'd0;
 
             in_pop       <= 1'b0;
 
@@ -195,6 +206,7 @@ module sdmc_aead128_core (
             perm_rd_en   <= 1'b0;
             perm_rd_lane <= 3'd0;
             perm_start   <= 1'b0;
+            perm_rounds_q <= 4'd12;
 
             out_token    <= {`SDMC_TOKEN_W{1'b0}};
             out_push     <= 1'b0;
@@ -212,6 +224,8 @@ module sdmc_aead128_core (
             msg_word_q   <= 64'd0;
             msg_bytes_q  <= 4'd0;
             ct_word_q    <= 64'd0;
+            ad_word_q    <= 64'd0;
+            ad_bytes_q   <= 4'd0;
 
             in_pop       <= 1'b0;
 
@@ -221,6 +235,7 @@ module sdmc_aead128_core (
             perm_rd_en   <= 1'b0;
             perm_rd_lane <= 3'd0;
             perm_start   <= 1'b0;
+            perm_rounds_q <= 4'd12;
 
             out_token    <= {`SDMC_TOKEN_W{1'b0}};
             out_push     <= 1'b0;
@@ -246,7 +261,7 @@ module sdmc_aead128_core (
                         auth_ok <= is_decrypt ? 1'b1 : 1'b0;
                         // This first clean milestone supports only AEAD encrypt
                         // with empty AD and empty plaintext.
-                        if (ad_len != 16'd0 || data_len > 16'd7) begin
+                        if (ad_len > 16'd7 || data_len > 16'd7) begin
                             error <= 1'b1;
                             done  <= 1'b1;
                             state <= S_IDLE;
@@ -358,8 +373,9 @@ module sdmc_aead128_core (
 
                 S_INIT_START: begin
                     if (perm_ready) begin
-                        perm_start <= 1'b1;
-                        state      <= S_INIT_WAIT;
+                        perm_rounds_q <= 4'd12;
+                        perm_start    <= 1'b1;
+                        state         <= S_INIT_WAIT;
                     end
                 end
 
@@ -380,7 +396,64 @@ module sdmc_aead128_core (
 
                 S_INIT_X4_DOM: begin
                     if (perm_ready) begin
-                        set_wr(3'd4, p4 ^ key1_q ^ 64'h8000_0000_0000_0000);
+                        if (ad_len != 16'd0) begin
+                            set_wr(3'd4, p4 ^ key1_q);
+                            state <= S_AD_WAIT;
+                        end else begin
+                            set_wr(3'd4, p4 ^ key1_q ^ 64'h8000_0000_0000_0000);
+                            if (data_len == 16'd0) begin
+                                state <= S_DATA_PAD;
+                            end else begin
+                                state <= S_MSG_WAIT;
+                            end
+                        end
+                    end
+                end
+
+                S_AD_WAIT: begin
+                    if (!in_empty) begin
+                        if (tok_kind != `SDMC_TOK_AD || tok_bytes == 4'd0 || tok_bytes > 4'd7) begin
+                            state <= S_ERR;
+                            error <= 1'b1;
+                        end else begin
+                            ad_word_q  <= tok_data;
+                            ad_bytes_q <= tok_bytes;
+                            in_pop     <= 1'b1;
+                            state      <= S_WAIT_AD;
+                        end
+                    end
+                end
+
+                S_WAIT_AD: begin
+                    state <= S_AD_ABSORB;
+                end
+
+                // Single partial AD block for first official AD-only KATs:
+                // x0 ^= AD || pad, x1 unchanged, then p8, then domain separation.
+                S_AD_ABSORB: begin
+                    if (perm_ready) begin
+                        set_wr(3'd0, p0 ^ ((ad_word_q & mask_n(ad_bytes_q)) ^ pad_n(ad_bytes_q)));
+                        state <= S_AD_P8_START;
+                    end
+                end
+
+                S_AD_P8_START: begin
+                    if (perm_ready) begin
+                        perm_rounds_q <= 4'd8;
+                        perm_start    <= 1'b1;
+                        state         <= S_AD_P8_WAIT;
+                    end
+                end
+
+                S_AD_P8_WAIT: begin
+                    if (perm_done) begin
+                        state <= S_AD_DOMSEP;
+                    end
+                end
+
+                S_AD_DOMSEP: begin
+                    if (perm_ready) begin
+                        set_wr(3'd4, p4 ^ 64'h8000_0000_0000_0000);
                         if (data_len == 16'd0) begin
                             state <= S_DATA_PAD;
                         end else begin
@@ -463,8 +536,9 @@ module sdmc_aead128_core (
 
                 S_FINAL_START: begin
                     if (perm_ready) begin
-                        perm_start <= 1'b1;
-                        state      <= S_FINAL_WAIT;
+                        perm_rounds_q <= 4'd12;
+                        perm_start    <= 1'b1;
+                        state         <= S_FINAL_WAIT;
                     end
                 end
 
