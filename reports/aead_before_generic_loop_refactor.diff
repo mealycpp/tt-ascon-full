@@ -1,3 +1,208 @@
+diff --git a/reports/aead_before_generic_loop_refactor.diff b/reports/aead_before_generic_loop_refactor.diff
+index 275e80a..e69de29 100644
+--- a/reports/aead_before_generic_loop_refactor.diff
++++ b/reports/aead_before_generic_loop_refactor.diff
+@@ -1,200 +0,0 @@
+-diff --git a/src/sdmc/sdmc_crypto_top.v b/src/sdmc/sdmc_crypto_top.v
+-index 6f66f4e..33d4c87 100644
+---- a/src/sdmc/sdmc_crypto_top.v
+-+++ b/src/sdmc/sdmc_crypto_top.v
+-@@ -54,13 +54,17 @@ module sdmc_crypto_top #(
+-         .clk         (clk),
+-         .rst_n       (rst_n),
+-         .clear       (clear),
+-+
+-         .cfg_wr_en   (cfg_wr_en),
+-         .cfg_wr_addr (cfg_wr_addr),
+-         .cfg_wr_data (cfg_wr_data),
+-+
+-         .host_mode   (host_mode),
+-         .program_id  (program_id),
+-+
+-         .use_cxof    (use_cxof),
+-         .is_decrypt  (is_decrypt),
+-+
+-         .chain_count (chain_count),
+-         .msg_len     (msg_len),
+-         .cs_len      (cs_len),
+-@@ -86,32 +90,32 @@ module sdmc_crypto_top #(
+-         .FIFO_DEPTH (FIFO_DEPTH),
+-         .FIFO_AW    (FIFO_AW)
+-     ) u_stream (
+--        .clk            (clk),
+--        .rst_n          (rst_n),
+--        .clear          (clear),
+--
+--        .in_byte        (in_byte),
+--        .in_kind        (in_kind),
+--        .in_last        (in_last),
+--        .in_valid       (in_valid),
+--        .in_ready       (in_ready),
+--
+--        .core_in_token  (core_in_token),
+--        .core_in_empty  (core_in_empty),
+--        .core_in_pop    (core_in_pop),
+--
+--        .core_out_token (core_out_token),
+--        .core_out_push  (core_out_push),
+--        .core_out_full  (core_out_full),
+--
+--        .out_byte       (out_byte),
+--        .out_kind       (out_kind),
+--        .out_last       (out_last),
+--        .out_valid      (out_valid),
+--        .out_ready      (out_ready),
+--
+--        .in_count       (in_count_w),
+--        .out_count      (out_count_w)
+-+        .clk           (clk),
+-+        .rst_n         (rst_n),
+-+        .clear         (clear),
+-+
+-+        .in_byte       (in_byte),
+-+        .in_kind       (in_kind),
+-+        .in_last       (in_last),
+-+        .in_valid      (in_valid),
+-+        .in_ready      (in_ready),
+-+
+-+        .core_in_token (core_in_token),
+-+        .core_in_empty (core_in_empty),
+-+        .core_in_pop   (core_in_pop),
+-+
+-+        .core_out_token(core_out_token),
+-+        .core_out_push (core_out_push),
+-+        .core_out_full (core_out_full),
+-+
+-+        .out_byte      (out_byte),
+-+        .out_kind      (out_kind),
+-+        .out_last      (out_last),
+-+        .out_valid     (out_valid),
+-+        .out_ready     (out_ready),
+-+
+-+        .in_count      (in_count_w),
+-+        .out_count     (out_count_w)
+-     );
+- 
+-     wire sel_hash = (program_id == `SDMC_PROG_HASH_FAMILY);
+-@@ -131,20 +135,24 @@ module sdmc_crypto_top #(
+-     wire                     hash_error;
+- 
+-     sdmc_hash256_core u_hash (
+--        .clk       (clk),
+--        .rst_n     (rst_n),
+--        .clear     (clear),
+--        .start     (hash_start),
+--        .msg_len   (msg_len),
+--        .in_token  (core_in_token),
+--        .in_empty  (core_in_empty),
+--        .in_pop    (hash_in_pop),
+--        .out_token (hash_out_token),
+--        .out_push  (hash_out_push),
+--        .out_full  (hash_out_full),
+--        .busy      (hash_busy),
+--        .done      (hash_done),
+--        .error     (hash_error)
+-+        .clk        (clk),
+-+        .rst_n      (rst_n),
+-+        .clear      (clear),
+-+
+-+        .start      (hash_start),
+-+        .msg_len    (msg_len),
+-+
+-+        .in_token   (core_in_token),
+-+        .in_empty   (core_in_empty),
+-+        .in_pop     (hash_in_pop),
+-+
+-+        .out_token  (hash_out_token),
+-+        .out_push   (hash_out_push),
+-+        .out_full   (hash_out_full),
+-+
+-+        .busy       (hash_busy),
+-+        .done       (hash_done),
+-+        .error      (hash_error)
+-     );
+- 
+-     wire [`SDMC_TOKEN_W-1:0] xof_out_token;
+-@@ -156,24 +164,28 @@ module sdmc_crypto_top #(
+-     wire                     xof_error;
+- 
+-     sdmc_xof_chain_family_core u_xof (
+--        .clk         (clk),
+--        .rst_n       (rst_n),
+--        .clear       (clear),
+--        .start       (xof_start),
+--        .use_cxof    (use_cxof),
+--        .chain_count (chain_count),
+--        .msg_len     (msg_len),
+--        .cs_len      (cs_len),
+--        .out_len     (out_len),
+--        .in_token    (core_in_token),
+--        .in_empty    (core_in_empty),
+--        .in_pop      (xof_in_pop),
+--        .out_token   (xof_out_token),
+--        .out_push    (xof_out_push),
+--        .out_full    (xof_out_full),
+--        .busy        (xof_busy),
+--        .done        (xof_done),
+--        .error       (xof_error)
+-+        .clk        (clk),
+-+        .rst_n      (rst_n),
+-+        .clear      (clear),
+-+
+-+        .start      (xof_start),
+-+        .use_cxof   (use_cxof),
+-+        .chain_count(chain_count),
+-+        .msg_len    (msg_len),
+-+        .cs_len     (cs_len),
+-+        .out_len    (out_len),
+-+
+-+        .in_token   (core_in_token),
+-+        .in_empty   (core_in_empty),
+-+        .in_pop     (xof_in_pop),
+-+
+-+        .out_token  (xof_out_token),
+-+        .out_push   (xof_out_push),
+-+        .out_full   (xof_out_full),
+-+
+-+        .busy       (xof_busy),
+-+        .done       (xof_done),
+-+        .error      (xof_error)
+-     );
+- 
+-     wire [`SDMC_TOKEN_W-1:0] aead_out_token;
+-@@ -189,16 +201,20 @@ module sdmc_crypto_top #(
+-         .clk        (clk),
+-         .rst_n      (rst_n),
+-         .clear      (clear),
+-+
+-         .start      (aead_start),
+-         .is_decrypt (is_decrypt),
+-         .ad_len     (ad_len),
+-         .data_len   (msg_len),
+-+
+-         .in_token   (core_in_token),
+-         .in_empty   (core_in_empty),
+-         .in_pop     (aead_in_pop),
+-+
+-         .out_token  (aead_out_token),
+-         .out_push   (aead_out_push),
+-         .out_full   (aead_out_full),
+-+
+-         .busy       (aead_busy),
+-         .done       (aead_done),
+-         .error      (aead_error),
+-@@ -227,7 +243,10 @@ module sdmc_crypto_top #(
+-     assign xof_out_full  = sel_xof  ? core_out_full : 1'b1;
+-     assign aead_out_full = sel_aead ? core_out_full : 1'b1;
+- 
+--    assign busy = hash_busy | xof_busy | aead_busy;
+-+    assign busy =
+-+        hash_busy |
+-+        xof_busy  |
+-+        aead_busy;
+- 
+-     assign done =
+-         (sel_hash & hash_done) |
 diff --git a/src/sdmc/sdmc_crypto_top.v b/src/sdmc/sdmc_crypto_top.v
 index 6f66f4e..33d4c87 100644
 --- a/src/sdmc/sdmc_crypto_top.v
