@@ -22,6 +22,22 @@ jobs:
     needs: gds
     runs-on: ubuntu-24.04
     steps:
+
+      - name: Upload GDS failure logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gds-debug-logs
+          path: |
+            runs/wokwi/**/*.log
+            runs/wokwi/**/*.json
+            runs/wokwi/**/*.def
+            runs/wokwi/**/*.sdc
+            runs/wokwi/**/*.rpt
+            runs/wokwi/**/COMMANDS
+            src/config.json
+            info.yaml
+          if-no-files-found: ignore
       - name: Run Tiny Tapeout Precheck
         uses: TinyTapeout/tt-gds-action/precheck@ttgf26a
 
