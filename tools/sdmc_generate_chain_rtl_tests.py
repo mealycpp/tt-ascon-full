@@ -232,7 +232,8 @@ def main():
     names = []
 
     for v in data["vectors"]:
-        # Current chain RTL caches one CS token only. z16 requires multi-CS-token replay.
+        # Current chain RTL supports one cached CS token for replay.
+        # Skip only multi-token CS cases such as z16; z0/z1/z8 are supported.
         if v["family"] == "cxof_chain" and len(bytes.fromhex(v["cs_hex"])) > 8:
             continue
         names.append(write_tb(v))
