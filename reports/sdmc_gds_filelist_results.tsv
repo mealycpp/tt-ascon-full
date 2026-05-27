@@ -1,0 +1,30 @@
+src/ascon_round.v	PASS	file exists
+src/ascon_permutation.v	PASS	file exists
+src/sdmc/sdmc_fifo.v	PASS	file exists
+src/sdmc/sdmc_token_fifo.v	PASS	file exists
+src/sdmc/sdmc_stream_ingress.v	PASS	file exists
+src/sdmc/sdmc_stream_egress.v	PASS	file exists
+src/sdmc/sdmc_stream_shell.v	PASS	file exists
+src/sdmc/sdmc_config_regs.v	PASS	file exists
+src/sdmc/sdmc_ascon_perm_unit64.v	PASS	file exists
+src/sdmc/sdmc_hash256_core.v	PASS	file exists
+src/sdmc/sdmc_xof_family_core.v	PASS	file exists
+src/sdmc/sdmc_xof_chain_family_core.v	PASS	file exists
+src/sdmc/sdmc_aead128_core.v	PASS	file exists
+src/sdmc/sdmc_crypto_top.v	PASS	file exists
+info.yaml	PASS	manifest found
+src/ascon_round.v	PASS	referenced by manifest/source list
+src/ascon_permutation.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_fifo.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_token_fifo.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_stream_ingress.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_stream_egress.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_stream_shell.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_config_regs.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_ascon_perm_unit64.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_hash256_core.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_xof_family_core.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_xof_chain_family_core.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_aead128_core.v	PASS	referenced by manifest/source list
+src/sdmc/sdmc_crypto_top.v	PASS	referenced by manifest/source list
+src backup files	PASS	no backup/generated RTL under src

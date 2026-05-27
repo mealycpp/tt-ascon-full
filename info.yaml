@@ -35,6 +35,19 @@ project:
     - cxof_patch_controller.v
     - aead_patch_controller.v
 
+    - "sdmc/sdmc_fifo.v"
+    - "sdmc/sdmc_token_fifo.v"
+    - "sdmc/sdmc_stream_ingress.v"
+    - "sdmc/sdmc_stream_egress.v"
+    - "sdmc/sdmc_stream_shell.v"
+    - "sdmc/sdmc_config_regs.v"
+    - "sdmc/sdmc_ascon_perm_unit64.v"
+    - "sdmc/sdmc_hash256_core.v"
+    - "sdmc/sdmc_xof_family_core.v"
+    - "sdmc/sdmc_xof_chain_family_core.v"
+    - "sdmc/sdmc_aead128_core.v"
+    - "sdmc/sdmc_crypto_top.v"
+
 pinout:
   ui[0]: "uart0_rx_ctrl"
   ui[1]: "uart1_rx_ad"
