@@ -3,7 +3,7 @@
 `include "sdmc_stream_defs.vh"
 `include "sdmc_crypto_defs.vh"
 
-module sdmc_aead128_core (
+module sdmc_aead128_core_generic (
     input  wire                     clk,
     input  wire                     rst_n,
     input  wire                     clear,
