@@ -128,6 +128,55 @@ run_one sdmc_aead128_ad7 /tmp/sdmc_aead128_ad7.vvp \
   src/sdmc/sdmc_aead128_core.v \
   test/sdmc_aead128_ad7/tb_sdmc_aead128_ad7.v
 
+run_one sdmc_aead128_pt1 /tmp/sdmc_aead128_pt1.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_aead128_core.v \
+  test/sdmc_aead128_pt1/tb_sdmc_aead128_pt1.v
+
+run_one sdmc_aead128_pt2 /tmp/sdmc_aead128_pt2.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_aead128_core.v \
+  test/sdmc_aead128_pt2/tb_sdmc_aead128_pt2.v
+
+run_one sdmc_aead128_pt3 /tmp/sdmc_aead128_pt3.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_aead128_core.v \
+  test/sdmc_aead128_pt3/tb_sdmc_aead128_pt3.v
+
+run_one sdmc_aead128_pt4 /tmp/sdmc_aead128_pt4.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_aead128_core.v \
+  test/sdmc_aead128_pt4/tb_sdmc_aead128_pt4.v
+
+run_one sdmc_aead128_pt5 /tmp/sdmc_aead128_pt5.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_aead128_core.v \
+  test/sdmc_aead128_pt5/tb_sdmc_aead128_pt5.v
+
+run_one sdmc_aead128_pt6 /tmp/sdmc_aead128_pt6.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_aead128_core.v \
+  test/sdmc_aead128_pt6/tb_sdmc_aead128_pt6.v
+
+run_one sdmc_aead128_pt7 /tmp/sdmc_aead128_pt7.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_aead128_core.v \
+  test/sdmc_aead128_pt7/tb_sdmc_aead128_pt7.v
+
 run_one sdmc_aead128_abc /tmp/sdmc_aead128_abc.vvp \
   src/ascon_round.v \
   src/ascon_permutation.v \
