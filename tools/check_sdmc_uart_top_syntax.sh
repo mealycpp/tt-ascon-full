@@ -21,8 +21,7 @@ iverilog -g2012 -I src -I src/sdmc \
   src/sdmc/sdmc_hash256_core.v \
   src/sdmc/sdmc_xof_family_core.v \
   src/sdmc/sdmc_xof_chain_family_core.v \
-  src/sdmc/sdmc_aead128_core.v \
-  src/sdmc/sdmc_crypto_top.v \
+    src/sdmc/sdmc_crypto_top_hx.v \
   src/sdmc/sdmc_uart_token_bridge.v \
   src/project_sdmc_uart_top.v
 

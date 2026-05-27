@@ -3,7 +3,7 @@ project:
   title:        "ASCON Integrated Crypto Processor"
   author:       "Dr. Mohamed El-Hadedy"
   discord:      ""
-  description:  "SDMC ASCON cryptographic processor with UART command/control, HASH256, XOF128, CXOF128, chained XOF/CXOF, and AEAD-128 encrypt/decrypt. UART0 carries command frames, UART1 carries key/nonce/AD/CS bytes, and UART2 carries message/tag input and result output."
+  description:  "4x4-fit SDMC ASCON cryptographic processor with UART command/control, HASH256, XOF128, CXOF128, and chained XOF/CXOF. AEAD RTL and tests are preserved in the repository but excluded from this GDS top for area closure."
   language:     "Verilog"
   clock_hz:     50000000
 
@@ -28,8 +28,7 @@ project:
     - "sdmc/sdmc_hash256_core.v"
     - "sdmc/sdmc_xof_family_core.v"
     - "sdmc/sdmc_xof_chain_family_core.v"
-    - "sdmc/sdmc_aead128_core.v"
-    - "sdmc/sdmc_crypto_top.v"
+    - "sdmc/sdmc_crypto_top_hx.v"
     - "sdmc/sdmc_uart_token_bridge.v"
     - "project_sdmc_uart_top.v"
 

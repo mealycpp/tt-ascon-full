@@ -174,7 +174,7 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         .bridge_error(bridge_error)
     );
 
-    sdmc_crypto_top #(.FIFO_DEPTH(8), .FIFO_AW(3)) u_sdmc (
+    sdmc_crypto_top_hx #(.FIFO_DEPTH(8), .FIFO_AW(3)) u_sdmc (
         .clk(clk),
         .rst_n(rst_n),
         .clear(clear),
