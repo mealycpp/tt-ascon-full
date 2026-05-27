@@ -34,6 +34,9 @@ module sdmc_xof_chain_family_core (
     localparam S_DONE       = 3'd4;
     localparam S_ERR        = 3'd5;
 
+    localparam CS_CACHE_DEPTH = 16;
+    localparam CS_CACHE_AW    = 4;
+
     reg [2:0] state;
 
     reg [15:0] passes_left;
@@ -47,9 +50,11 @@ module sdmc_xof_chain_family_core (
     reg [1:0] capture_idx;
     reg [2:0] feed_idx;
 
-    reg [`SDMC_TOKEN_W-1:0] cs_token_q;
-    reg                     cs_token_seen;
-    reg                     cs_feed_done;
+    reg [`SDMC_TOKEN_W-1:0] cs_cache [0:CS_CACHE_DEPTH-1];
+    reg [CS_CACHE_AW:0]     cs_cache_count;
+    reg [CS_CACHE_AW:0]     cs_replay_idx;
+    reg                     cs_cache_hold_q;
+    reg                     cs_cache_overflow;
 
     reg inner_start;
 
@@ -76,13 +81,14 @@ module sdmc_xof_chain_family_core (
     wire [`SDMC_TOKEN_W-1:0] internal_msg_token =
         { (feed_idx == 3'd3), `SDMC_TOK_MSG, 4'd8, feed_word };
 
-    wire feeding_cached_cs = (!pass0_q) && use_cxof && (cs_len != 16'd0) && (!cs_feed_done);
+    wire feeding_cached_cs = (!pass0_q) && use_cxof && (cs_replay_idx < cs_cache_count);
+    wire [`SDMC_TOKEN_W-1:0] cached_cs_token = cs_cache[cs_replay_idx[CS_CACHE_AW-1:0]];
 
     assign inner_in_token = pass0_q ? in_token :
-                            (feeding_cached_cs ? cs_token_q : internal_msg_token);
+                            (feeding_cached_cs ? cached_cs_token : internal_msg_token);
 
     assign inner_in_empty = pass0_q ? in_empty :
-                            (feeding_cached_cs ? (!cs_token_seen) : (feed_idx >= 3'd4));
+                            (feeding_cached_cs ? 1'b0 : (feed_idx >= 3'd4));
 
     assign in_pop = pass0_q ? inner_in_pop : 1'b0;
 
@@ -128,9 +134,10 @@ module sdmc_xof_chain_family_core (
             digest3     <= 64'd0;
             capture_idx <= 2'd0;
             feed_idx    <= 3'd0;
-            cs_token_q    <= {`SDMC_TOKEN_W{1'b0}};
-            cs_token_seen <= 1'b0;
-            cs_feed_done  <= 1'b0;
+            cs_cache_count    <= {CS_CACHE_AW+1{1'b0}};
+            cs_replay_idx      <= {CS_CACHE_AW+1{1'b0}};
+            cs_cache_hold_q    <= 1'b0;
+            cs_cache_overflow  <= 1'b0;
             inner_start    <= 1'b0;
             busy        <= 1'b0;
             done        <= 1'b0;
@@ -145,9 +152,10 @@ module sdmc_xof_chain_family_core (
             digest3     <= 64'd0;
             capture_idx <= 2'd0;
             feed_idx    <= 3'd0;
-            cs_token_q    <= {`SDMC_TOKEN_W{1'b0}};
-            cs_token_seen <= 1'b0;
-            cs_feed_done  <= 1'b0;
+            cs_cache_count    <= {CS_CACHE_AW+1{1'b0}};
+            cs_replay_idx      <= {CS_CACHE_AW+1{1'b0}};
+            cs_cache_hold_q    <= 1'b0;
+            cs_cache_overflow  <= 1'b0;
             inner_start    <= 1'b0;
             busy        <= 1'b0;
             done        <= 1'b0;
@@ -160,15 +168,28 @@ module sdmc_xof_chain_family_core (
             // Do not wait for inner_in_pop here: inner_in_pop is registered by
             // the inner core, so the outer testbench may already have advanced
             // in_token by the time this parent FSM observes the pop.
+            // Cache first-pass CS tokens while each token is present.
+            // inner_in_pop is observed one cycle late by this parent FSM, so
+            // do not wait for it to capture the CS token.
             if (pass0_q && !in_empty &&
-                (in_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB] == `SDMC_TOK_CS)) begin
-                cs_token_q    <= in_token;
-                cs_token_seen <= 1'b1;
+                (in_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB] == `SDMC_TOK_CS) &&
+                !cs_cache_hold_q) begin
+                if (cs_cache_count < CS_CACHE_DEPTH[CS_CACHE_AW:0]) begin
+                    cs_cache[cs_cache_count[CS_CACHE_AW-1:0]] <= in_token;
+                    cs_cache_count <= cs_cache_count + {{CS_CACHE_AW{1'b0}}, 1'b1};
+                end else begin
+                    cs_cache_overflow <= 1'b1;
+                end
+                cs_cache_hold_q <= 1'b1;
+            end
+
+            if (pass0_q && inner_in_pop) begin
+                cs_cache_hold_q <= 1'b0;
             end
 
             if ((!pass0_q) && inner_in_pop) begin
                 if (feeding_cached_cs) begin
-                    cs_feed_done <= 1'b1;
+                    cs_replay_idx <= cs_replay_idx + {{CS_CACHE_AW{1'b0}}, 1'b1};
                 end else begin
                     feed_idx <= feed_idx + 3'd1;
                 end
@@ -201,10 +222,11 @@ module sdmc_xof_chain_family_core (
                             passes_left <= (chain_count == 16'd0) ? 16'd1 : chain_count;
                             capture_idx   <= 2'd0;
                             feed_idx      <= 3'd0;
-                            cs_token_q    <= {`SDMC_TOKEN_W{1'b0}};
-                            cs_token_seen <= (cs_len == 16'd0);
-                            cs_feed_done  <= (cs_len == 16'd0);
-                            state         <= S_START_PASS;
+                            cs_cache_count    <= {CS_CACHE_AW+1{1'b0}};
+                            cs_replay_idx      <= {CS_CACHE_AW+1{1'b0}};
+                            cs_cache_hold_q    <= 1'b0;
+                            cs_cache_overflow  <= 1'b0;
+                            state              <= S_START_PASS;
                         end
                     end
                 end
@@ -216,7 +238,7 @@ module sdmc_xof_chain_family_core (
 
                 S_RUN_PASS: begin
                     if (inner_done) begin
-                        if (inner_error) begin
+                        if (inner_error || cs_cache_overflow) begin
                             error <= 1'b1;
                             state <= S_ERR;
                         end else if (passes_left == 16'd1) begin
@@ -230,10 +252,10 @@ module sdmc_xof_chain_family_core (
                 S_NEXT_PASS: begin
                     passes_left <= passes_left - 16'd1;
                     pass0_q     <= 1'b0;
-                    feed_idx     <= 3'd0;
-                    capture_idx  <= 2'd0;
-                    cs_feed_done <= (cs_len == 16'd0);
-                    state        <= S_START_PASS;
+                    feed_idx        <= 3'd0;
+                    capture_idx     <= 2'd0;
+                    cs_replay_idx   <= {CS_CACHE_AW+1{1'b0}};
+                    state           <= S_START_PASS;
                 end
 
                 S_DONE: begin

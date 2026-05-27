@@ -1,4 +1,4 @@
-Generated 288 chain RTL vector tests
+Generated 360 chain RTL vector tests
 Manifest: /home/hadedy/tt-ascon-full/test/sdmc_chain_vector_matrix/manifest.txt
 === sdmc_xof_chain_empty_c1_out16 ===
 VCD info: dumpfile tb_sdmc_xof_chain_empty_c1_out16.vcd opened for output.
@@ -1152,6 +1152,294 @@ test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z8_m32_c16_out32/tb_sdmc_cxof_chai
 VCD info: dumpfile tb_sdmc_cxof_chain_z8_m32_c16_out64.vcd opened for output.
 PASS sdmc_cxof_chain_z8_m32_c16_out64
 test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z8_m32_c16_out64/tb_sdmc_cxof_chain_z8_m32_c16_out64.v:164: $finish called at 43590000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c1_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c1_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c1_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c1_out16/tb_sdmc_cxof_chain_z16_empty_c1_out16.v:161: $finish called at 1710000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c1_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c1_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c1_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c1_out32/tb_sdmc_cxof_chain_z16_empty_c1_out32.v:161: $finish called at 2090000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c1_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c1_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c1_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c1_out64/tb_sdmc_cxof_chain_z16_empty_c1_out64.v:161: $finish called at 2850000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c2_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c2_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c2_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c2_out16/tb_sdmc_cxof_chain_z16_empty_c2_out16.v:161: $finish called at 4610000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c2_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c2_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c2_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c2_out32/tb_sdmc_cxof_chain_z16_empty_c2_out32.v:161: $finish called at 4990000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c2_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c2_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c2_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c2_out64/tb_sdmc_cxof_chain_z16_empty_c2_out64.v:161: $finish called at 5750000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c5_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c5_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c5_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c5_out16/tb_sdmc_cxof_chain_z16_empty_c5_out16.v:161: $finish called at 13310000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c5_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c5_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c5_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c5_out32/tb_sdmc_cxof_chain_z16_empty_c5_out32.v:161: $finish called at 13690000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c5_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c5_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c5_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c5_out64/tb_sdmc_cxof_chain_z16_empty_c5_out64.v:161: $finish called at 14450000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c16_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c16_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c16_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c16_out16/tb_sdmc_cxof_chain_z16_empty_c16_out16.v:161: $finish called at 45210000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c16_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c16_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c16_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c16_out32/tb_sdmc_cxof_chain_z16_empty_c16_out32.v:161: $finish called at 45590000 (1ps)
+=== sdmc_cxof_chain_z16_empty_c16_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_empty_c16_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_empty_c16_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_empty_c16_out64/tb_sdmc_cxof_chain_z16_empty_c16_out64.v:161: $finish called at 46350000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c1_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c1_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c1_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c1_out16/tb_sdmc_cxof_chain_z16_m1_c1_out16.v:162: $finish called at 1720000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c1_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c1_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c1_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c1_out32/tb_sdmc_cxof_chain_z16_m1_c1_out32.v:162: $finish called at 2100000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c1_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c1_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c1_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c1_out64/tb_sdmc_cxof_chain_z16_m1_c1_out64.v:162: $finish called at 2860000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c2_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c2_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c2_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c2_out16/tb_sdmc_cxof_chain_z16_m1_c2_out16.v:162: $finish called at 4620000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c2_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c2_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c2_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c2_out32/tb_sdmc_cxof_chain_z16_m1_c2_out32.v:162: $finish called at 5000000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c2_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c2_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c2_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c2_out64/tb_sdmc_cxof_chain_z16_m1_c2_out64.v:162: $finish called at 5760000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c5_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c5_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c5_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c5_out16/tb_sdmc_cxof_chain_z16_m1_c5_out16.v:162: $finish called at 13320000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c5_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c5_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c5_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c5_out32/tb_sdmc_cxof_chain_z16_m1_c5_out32.v:162: $finish called at 13700000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c5_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c5_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c5_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c5_out64/tb_sdmc_cxof_chain_z16_m1_c5_out64.v:162: $finish called at 14460000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c16_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c16_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c16_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c16_out16/tb_sdmc_cxof_chain_z16_m1_c16_out16.v:162: $finish called at 45220000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c16_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c16_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c16_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c16_out32/tb_sdmc_cxof_chain_z16_m1_c16_out32.v:162: $finish called at 45600000 (1ps)
+=== sdmc_cxof_chain_z16_m1_c16_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m1_c16_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m1_c16_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m1_c16_out64/tb_sdmc_cxof_chain_z16_m1_c16_out64.v:162: $finish called at 46360000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c1_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c1_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c1_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c1_out16/tb_sdmc_cxof_chain_z16_m8_c1_out16.v:162: $finish called at 1940000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c1_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c1_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c1_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c1_out32/tb_sdmc_cxof_chain_z16_m8_c1_out32.v:162: $finish called at 2320000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c1_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c1_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c1_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c1_out64/tb_sdmc_cxof_chain_z16_m8_c1_out64.v:162: $finish called at 3080000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c2_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c2_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c2_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c2_out16/tb_sdmc_cxof_chain_z16_m8_c2_out16.v:162: $finish called at 4840000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c2_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c2_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c2_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c2_out32/tb_sdmc_cxof_chain_z16_m8_c2_out32.v:162: $finish called at 5220000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c2_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c2_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c2_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c2_out64/tb_sdmc_cxof_chain_z16_m8_c2_out64.v:162: $finish called at 5980000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c5_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c5_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c5_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c5_out16/tb_sdmc_cxof_chain_z16_m8_c5_out16.v:162: $finish called at 13540000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c5_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c5_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c5_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c5_out32/tb_sdmc_cxof_chain_z16_m8_c5_out32.v:162: $finish called at 13920000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c5_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c5_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c5_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c5_out64/tb_sdmc_cxof_chain_z16_m8_c5_out64.v:162: $finish called at 14680000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c16_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c16_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c16_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c16_out16/tb_sdmc_cxof_chain_z16_m8_c16_out16.v:162: $finish called at 45440000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c16_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c16_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c16_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c16_out32/tb_sdmc_cxof_chain_z16_m8_c16_out32.v:162: $finish called at 45820000 (1ps)
+=== sdmc_cxof_chain_z16_m8_c16_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m8_c16_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m8_c16_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m8_c16_out64/tb_sdmc_cxof_chain_z16_m8_c16_out64.v:162: $finish called at 46580000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c1_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c1_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c1_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c1_out16/tb_sdmc_cxof_chain_z16_m16_c1_out16.v:163: $finish called at 2170000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c1_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c1_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c1_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c1_out32/tb_sdmc_cxof_chain_z16_m16_c1_out32.v:163: $finish called at 2550000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c1_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c1_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c1_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c1_out64/tb_sdmc_cxof_chain_z16_m16_c1_out64.v:163: $finish called at 3310000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c2_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c2_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c2_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c2_out16/tb_sdmc_cxof_chain_z16_m16_c2_out16.v:163: $finish called at 5070000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c2_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c2_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c2_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c2_out32/tb_sdmc_cxof_chain_z16_m16_c2_out32.v:163: $finish called at 5450000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c2_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c2_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c2_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c2_out64/tb_sdmc_cxof_chain_z16_m16_c2_out64.v:163: $finish called at 6210000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c5_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c5_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c5_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c5_out16/tb_sdmc_cxof_chain_z16_m16_c5_out16.v:163: $finish called at 13770000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c5_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c5_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c5_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c5_out32/tb_sdmc_cxof_chain_z16_m16_c5_out32.v:163: $finish called at 14150000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c5_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c5_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c5_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c5_out64/tb_sdmc_cxof_chain_z16_m16_c5_out64.v:163: $finish called at 14910000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c16_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c16_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c16_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c16_out16/tb_sdmc_cxof_chain_z16_m16_c16_out16.v:163: $finish called at 45670000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c16_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c16_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c16_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c16_out32/tb_sdmc_cxof_chain_z16_m16_c16_out32.v:163: $finish called at 46050000 (1ps)
+=== sdmc_cxof_chain_z16_m16_c16_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m16_c16_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m16_c16_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m16_c16_out64/tb_sdmc_cxof_chain_z16_m16_c16_out64.v:163: $finish called at 46810000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c1_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c1_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c1_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c1_out16/tb_sdmc_cxof_chain_z16_m17_c1_out16.v:164: $finish called at 2180000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c1_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c1_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c1_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c1_out32/tb_sdmc_cxof_chain_z16_m17_c1_out32.v:164: $finish called at 2560000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c1_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c1_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c1_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c1_out64/tb_sdmc_cxof_chain_z16_m17_c1_out64.v:164: $finish called at 3320000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c2_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c2_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c2_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c2_out16/tb_sdmc_cxof_chain_z16_m17_c2_out16.v:164: $finish called at 5080000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c2_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c2_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c2_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c2_out32/tb_sdmc_cxof_chain_z16_m17_c2_out32.v:164: $finish called at 5460000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c2_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c2_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c2_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c2_out64/tb_sdmc_cxof_chain_z16_m17_c2_out64.v:164: $finish called at 6220000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c5_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c5_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c5_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c5_out16/tb_sdmc_cxof_chain_z16_m17_c5_out16.v:164: $finish called at 13780000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c5_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c5_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c5_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c5_out32/tb_sdmc_cxof_chain_z16_m17_c5_out32.v:164: $finish called at 14160000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c5_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c5_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c5_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c5_out64/tb_sdmc_cxof_chain_z16_m17_c5_out64.v:164: $finish called at 14920000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c16_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c16_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c16_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c16_out16/tb_sdmc_cxof_chain_z16_m17_c16_out16.v:164: $finish called at 45680000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c16_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c16_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c16_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c16_out32/tb_sdmc_cxof_chain_z16_m17_c16_out32.v:164: $finish called at 46060000 (1ps)
+=== sdmc_cxof_chain_z16_m17_c16_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m17_c16_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m17_c16_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m17_c16_out64/tb_sdmc_cxof_chain_z16_m17_c16_out64.v:164: $finish called at 46820000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c1_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c1_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c1_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c1_out16/tb_sdmc_cxof_chain_z16_m32_c1_out16.v:165: $finish called at 2630000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c1_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c1_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c1_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c1_out32/tb_sdmc_cxof_chain_z16_m32_c1_out32.v:165: $finish called at 3010000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c1_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c1_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c1_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c1_out64/tb_sdmc_cxof_chain_z16_m32_c1_out64.v:165: $finish called at 3770000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c2_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c2_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c2_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c2_out16/tb_sdmc_cxof_chain_z16_m32_c2_out16.v:165: $finish called at 5530000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c2_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c2_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c2_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c2_out32/tb_sdmc_cxof_chain_z16_m32_c2_out32.v:165: $finish called at 5910000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c2_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c2_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c2_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c2_out64/tb_sdmc_cxof_chain_z16_m32_c2_out64.v:165: $finish called at 6670000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c5_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c5_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c5_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c5_out16/tb_sdmc_cxof_chain_z16_m32_c5_out16.v:165: $finish called at 14230000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c5_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c5_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c5_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c5_out32/tb_sdmc_cxof_chain_z16_m32_c5_out32.v:165: $finish called at 14610000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c5_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c5_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c5_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c5_out64/tb_sdmc_cxof_chain_z16_m32_c5_out64.v:165: $finish called at 15370000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c16_out16 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c16_out16.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c16_out16
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c16_out16/tb_sdmc_cxof_chain_z16_m32_c16_out16.v:165: $finish called at 46130000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c16_out32 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c16_out32.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c16_out32
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c16_out32/tb_sdmc_cxof_chain_z16_m32_c16_out32.v:165: $finish called at 46510000 (1ps)
+=== sdmc_cxof_chain_z16_m32_c16_out64 ===
+VCD info: dumpfile tb_sdmc_cxof_chain_z16_m32_c16_out64.vcd opened for output.
+PASS sdmc_cxof_chain_z16_m32_c16_out64
+test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z16_m32_c16_out64/tb_sdmc_cxof_chain_z16_m32_c16_out64.v:165: $finish called at 47270000 (1ps)
 
 === SDMC CHAIN VECTOR REGRESSION SUMMARY ===
 +---------------------------------------------------------------+--------+-------------------+
@@ -1445,5 +1733,77 @@ test/sdmc_chain_vector_matrix/sdmc_cxof_chain_z8_m32_c16_out64/tb_sdmc_cxof_chai
 | sdmc_cxof_chain_z8_m32_c16_out16                              | [32mPASS ✅[0m | Simulation passed |
 | sdmc_cxof_chain_z8_m32_c16_out32                              | [32mPASS ✅[0m | Simulation passed |
 | sdmc_cxof_chain_z8_m32_c16_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c1_out16                            | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c1_out32                            | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c1_out64                            | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c2_out16                            | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c2_out32                            | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c2_out64                            | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c5_out16                            | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c5_out32                            | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c5_out64                            | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c16_out16                           | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c16_out32                           | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_empty_c16_out64                           | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c1_out16                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c1_out32                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c1_out64                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c2_out16                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c2_out32                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c2_out64                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c5_out16                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c5_out32                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c5_out64                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c16_out16                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c16_out32                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m1_c16_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c1_out16                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c1_out32                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c1_out64                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c2_out16                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c2_out32                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c2_out64                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c5_out16                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c5_out32                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c5_out64                               | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c16_out16                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c16_out32                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m8_c16_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c1_out16                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c1_out32                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c1_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c2_out16                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c2_out32                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c2_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c5_out16                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c5_out32                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c5_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c16_out16                             | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c16_out32                             | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m16_c16_out64                             | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c1_out16                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c1_out32                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c1_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c2_out16                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c2_out32                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c2_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c5_out16                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c5_out32                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c5_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c16_out16                             | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c16_out32                             | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m17_c16_out64                             | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c1_out16                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c1_out32                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c1_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c2_out16                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c2_out32                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c2_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c5_out16                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c5_out32                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c5_out64                              | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c16_out16                             | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c16_out32                             | [32mPASS ✅[0m | Simulation passed |
+| sdmc_cxof_chain_z16_m32_c16_out64                             | [32mPASS ✅[0m | Simulation passed |
 +---------------------------------------------------------------+--------+-------------------+
-[32mPASS sdmc_chain_vector_regression: 288 passed, 0 failed[0m
+[32mPASS sdmc_chain_vector_regression: 360 passed, 0 failed[0m

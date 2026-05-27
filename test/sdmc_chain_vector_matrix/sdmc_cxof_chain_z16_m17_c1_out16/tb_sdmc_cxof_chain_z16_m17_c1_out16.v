@@ -1,73 +1,13 @@
-#!/usr/bin/env python3
-import json
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-VEC = ROOT / "kat/derived/sdmc_chain_generated_vectors.json"
-OUT_ROOT = ROOT / "test/sdmc_chain_vector_matrix"
-
-def chunks8(hexstr):
-    b = bytes.fromhex(hexstr)
-    out = []
-    for i in range(0, len(b), 8):
-        chunk = b[i:i+8]
-        word = int.from_bytes(chunk, "little")
-        out.append((word, len(chunk), i + 8 >= len(b)))
-    return out
-
-def tok(last, kind, nbytes, word):
-    return "{1'b%d, `%s, 4'd%d, 64'h%016x}" % (1 if last else 0, kind, nbytes, word)
-
-def packed_le(hexstr):
-    b = bytes.fromhex(hexstr)
-    return int.from_bytes(b, "little") if b else 0
-
-def make_tokens(v):
-    tokens = []
-    if v["family"] == "cxof_chain" and v["cs_hex"]:
-        for word, nbytes, last in chunks8(v["cs_hex"]):
-            tokens.append(tok(last, "SDMC_TOK_CS", nbytes, word))
-    for word, nbytes, last in chunks8(v["msg_hex"]):
-        tokens.append(tok(last, "SDMC_TOK_MSG", nbytes, word))
-    return tokens
-
-def write_tb(v):
-    name = "sdmc_" + v["name"]
-    d = OUT_ROOT / name
-    d.mkdir(parents=True, exist_ok=True)
-    tb = d / f"tb_{name}.v"
-
-    tokens = make_tokens(v)
-    token_count = len(tokens)
-    expected_hex = v["expected_hex"]
-    out_len = int(v["out_len"])
-    out_bits = out_len * 8
-    expected_val = packed_le(expected_hex)
-    expected_lit = f"{out_bits}'h{expected_val:0{out_bits//4}x}"
-    use_cxof = "1'b1" if v["family"] == "cxof_chain" else "1'b0"
-    msg_len = len(bytes.fromhex(v["msg_hex"]))
-    cs_len = len(bytes.fromhex(v["cs_hex"]))
-    chain_count = int(v["chain_count"])
-
-    init_lines = "\n".join(
-        f"        token_mem[{i}] = {lit};" for i, lit in enumerate(tokens)
-    )
-
-    if token_count == 0:
-        token_decl = "reg [`SDMC_TOKEN_W-1:0] token_mem [0:0];"
-    else:
-        token_decl = f"reg [`SDMC_TOKEN_W-1:0] token_mem [0:TOKEN_COUNT-1];"
-
-    tb.write_text(f"""`timescale 1ns/1ps
+`timescale 1ns/1ps
 `default_nettype none
 
 `include "sdmc_stream_defs.vh"
 
-module tb_{name};
+module tb_sdmc_cxof_chain_z16_m17_c1_out16;
 
-    localparam integer TOKEN_COUNT = {token_count};
-    localparam integer OUT_BYTES = {out_len};
-    localparam integer OUT_BITS = {out_bits};
+    localparam integer TOKEN_COUNT = 5;
+    localparam integer OUT_BYTES = 16;
+    localparam integer OUT_BITS = 128;
 
     reg clk = 1'b0;
     reg rst_n = 1'b0;
@@ -76,10 +16,10 @@ module tb_{name};
     always #5 clk = ~clk;
 
     reg [15:0] token_idx = 16'd0;
-    {token_decl}
+    reg [`SDMC_TOKEN_W-1:0] token_mem [0:TOKEN_COUNT-1];
 
     wire in_empty = (token_idx >= TOKEN_COUNT);
-    wire [`SDMC_TOKEN_W-1:0] in_token = in_empty ? {{`SDMC_TOKEN_W{{1'b0}}}} : token_mem[token_idx];
+    wire [`SDMC_TOKEN_W-1:0] in_token = in_empty ? {`SDMC_TOKEN_W{1'b0}} : token_mem[token_idx];
     wire in_pop;
 
     wire [`SDMC_TOKEN_W-1:0] out_token;
@@ -98,11 +38,11 @@ module tb_{name};
         .rst_n(rst_n),
         .clear(clear),
         .start(start),
-        .use_cxof({use_cxof}),
-        .chain_count(16'd{chain_count}),
-        .msg_len(16'd{msg_len}),
-        .cs_len(16'd{cs_len}),
-        .out_len(16'd{out_len}),
+        .use_cxof(1'b1),
+        .chain_count(16'd1),
+        .msg_len(16'd17),
+        .cs_len(16'd16),
+        .out_len(16'd16),
         .in_token(in_token),
         .in_empty(in_empty),
         .in_pop(in_pop),
@@ -127,7 +67,11 @@ module tb_{name};
     wire tok_last = out_token[`SDMC_TOKEN_LAST_BIT];
 
     initial begin
-{init_lines}
+        token_mem[0] = {1'b0, `SDMC_TOK_CS, 4'd8, 64'h1716151413121110};
+        token_mem[1] = {1'b1, `SDMC_TOK_CS, 4'd8, 64'h1f1e1d1c1b1a1918};
+        token_mem[2] = {1'b0, `SDMC_TOK_MSG, 4'd8, 64'h0706050403020100};
+        token_mem[3] = {1'b0, `SDMC_TOK_MSG, 4'd8, 64'h0f0e0d0c0b0a0908};
+        token_mem[4] = {1'b1, `SDMC_TOK_MSG, 4'd1, 64'h0000000000000010};
     end
 
     always @(negedge clk) begin
@@ -140,7 +84,7 @@ module tb_{name};
 
     always @(posedge clk) begin
         if (!rst_n || clear) begin
-            got <= {{OUT_BITS{{1'b0}}}};
+            got <= {OUT_BITS{1'b0}};
             out_bytes_seen <= 16'd0;
         end else if (out_push) begin
             if (tok_kind !== `SDMC_TOK_OUT) begin
@@ -171,8 +115,8 @@ module tb_{name};
     integer guard;
 
     initial begin
-        $dumpfile("tb_{name}.vcd");
-        $dumpvars(0, tb_{name});
+        $dumpfile("tb_sdmc_cxof_chain_z16_m17_c1_out16.vcd");
+        $dumpvars(0, tb_sdmc_cxof_chain_z16_m17_c1_out16);
 
         repeat (5) tick();
         rst_n = 1'b1;
@@ -187,7 +131,7 @@ module tb_{name};
             tick();
             guard = guard + 1;
             if (guard > 200000) begin
-                $display("FAIL timeout {name}");
+                $display("FAIL timeout sdmc_cxof_chain_z16_m17_c1_out16");
                 $finish;
             end
         end
@@ -195,7 +139,7 @@ module tb_{name};
         repeat (3) tick();
 
         if (error) begin
-            $display("FAIL error asserted {name}");
+            $display("FAIL error asserted sdmc_cxof_chain_z16_m17_c1_out16");
             $finish;
         end
 
@@ -209,38 +153,17 @@ module tb_{name};
             $finish;
         end
 
-        if (got !== {expected_lit}) begin
-            $display("FAIL digest mismatch {name}");
+        if (got !== 128'h56bc1d887a77514c189fd0446575c03c) begin
+            $display("FAIL digest mismatch sdmc_cxof_chain_z16_m17_c1_out16");
             $display("got=%h", got);
-            $display("exp=%h", {expected_lit});
+            $display("exp=%h", 128'h56bc1d887a77514c189fd0446575c03c);
             $finish;
         end
 
-        $display("PASS {name}");
+        $display("PASS sdmc_cxof_chain_z16_m17_c1_out16");
         $finish;
     end
 
 endmodule
 
 `default_nettype wire
-""")
-
-    return name
-
-def main():
-    data = json.loads(VEC.read_text())
-    names = []
-
-    for v in data["vectors"]:
-        # Multi-token CXOF customization replay is supported by the chain cache.
-        names.append(write_tb(v))
-
-    manifest = OUT_ROOT / "manifest.txt"
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    manifest.write_text("\n".join(names) + "\n")
-
-    print(f"Generated {len(names)} chain RTL vector tests")
-    print(f"Manifest: {manifest}")
-
-if __name__ == "__main__":
-    main()
