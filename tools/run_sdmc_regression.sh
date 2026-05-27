@@ -72,6 +72,27 @@ run_one sdmc_cxof_chain_family_core_full /tmp/sdmc_cxof_chain_family_core_full.v
   src/sdmc/sdmc_xof_chain_family_core.v \
   test/sdmc_cxof_chain_family_core_full/tb_sdmc_cxof_chain_family_core_full.v
 
+run_one sdmc_aead128_empty /tmp/sdmc_aead128_empty.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_aead128_core.v \
+  test/sdmc_aead128_empty/tb_sdmc_aead128_empty.v
+
+run_one sdmc_aead128_abc /tmp/sdmc_aead128_abc.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_aead128_core.v \
+  test/sdmc_aead128_abc/tb_sdmc_aead128_abc.v
+
+run_one sdmc_aead128_dec_abc /tmp/sdmc_aead128_dec_abc.vvp \
+  src/ascon_round.v \
+  src/ascon_permutation.v \
+  src/sdmc/sdmc_ascon_perm_unit64.v \
+  src/sdmc/sdmc_aead128_core.v \
+  test/sdmc_aead128_dec_abc/tb_sdmc_aead128_dec_abc.v
+
 run_one sdmc_xof_family_core_empty /tmp/sdmc_xof_family_core_empty.vvp \
   src/ascon_round.v \
   src/ascon_permutation.v \
