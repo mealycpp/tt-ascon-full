@@ -1,0 +1,42 @@
+=== SDMC GDS RISK AUDIT ===
+
+Files audited:
+   src/sdmc/sdmc_aead128_core.v
+   src/sdmc/sdmc_ascon_perm_unit64.v
+   src/sdmc/sdmc_byte_to_word.v
+   src/sdmc/sdmc_config_regs.v
+   src/sdmc/sdmc_crypto_helpers.v
+   src/sdmc/sdmc_crypto_top.v
+   src/sdmc/sdmc_engine64p.v
+   src/sdmc/sdmc_fifo.v
+   src/sdmc/sdmc_hash256_core.v
+   src/sdmc/sdmc_hash_family_shell.v
+   src/sdmc/sdmc_micro_smoke.v
+   src/sdmc/sdmc_regfile64.v
+   src/sdmc/sdmc_stream_egress.v
+   src/sdmc/sdmc_stream_ingress.v
+   src/sdmc/sdmc_stream_shell.v
+   src/sdmc/sdmc_token_fifo.v
+   src/sdmc/sdmc_uop_exec64.v
+   src/sdmc/sdmc_uop_exec64p.v
+   src/sdmc/sdmc_uop_sequencer64.v
+   src/sdmc/sdmc_uop_sequencer64p.v
+   src/sdmc/sdmc_word_alu64.v
+   src/sdmc/sdmc_word_stream_boundary.v
+   src/sdmc/sdmc_word_to_byte.v
+   src/sdmc/sdmc_xof_chain_family_core.v
+   src/sdmc/sdmc_xof_family_core.v
+
+WARNINGS: none
+
+PASS sdmc_gds_risk_audit
+
+=== SDMC GDS RISK AUDIT SUMMARY ===
++---------------+--------+--------------------+
+| Check         | Status | Detail             |
++---------------+--------+--------------------+
+| Files audited | PASS   | 25 files           |
+| Warnings      | PASS   | 0 warning(s)       |
+| Failures      | PASS   | 0 failure(s)       |
+| Overall audit | PASS   | ready for GDS gate |
++---------------+--------+--------------------+
