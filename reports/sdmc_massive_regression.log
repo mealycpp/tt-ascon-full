@@ -113,6 +113,16 @@ VCD info: dumpfile tb_sdmc_aead128_pt7.vcd opened for output.
 PASS sdmc_aead128_pt7
 test/sdmc_aead128_pt7/tb_sdmc_aead128_pt7.v:161: $finish called at 680000 (1ps)
 
+=== sdmc_aead128_ad8 ===
+VCD info: dumpfile tb_sdmc_aead128_ad8.vcd opened for output.
+PASS sdmc_aead128_ad8
+test/sdmc_aead128_ad8/tb_sdmc_aead128_ad8.v:32: $finish called at 840000 (1ps)
+
+=== sdmc_aead128_pt8 ===
+VCD info: dumpfile tb_sdmc_aead128_pt8.vcd opened for output.
+PASS sdmc_aead128_pt8
+test/sdmc_aead128_pt8/tb_sdmc_aead128_pt8.v:32: $finish called at 690000 (1ps)
+
 === sdmc_aead128_abc ===
 VCD info: dumpfile tb_sdmc_aead128_abc.vcd opened for output.
 PASS sdmc_aead128_abc

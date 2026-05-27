@@ -66,6 +66,8 @@ module sdmc_aead128_core (
     localparam S_WAIT_MSG    = 6'd31;
     localparam S_WAIT_TAG1   = 6'd32;
     localparam S_AD_DOMSEP    = 6'd38;
+    localparam S_AD_PAD_X1  = 6'd39;
+    localparam S_MSG_PAD_X1 = 6'd40;
     localparam S_AD_WAIT     = 6'd33;
     localparam S_WAIT_AD     = 6'd34;
     localparam S_AD_ABSORB   = 6'd35;
@@ -261,7 +263,7 @@ module sdmc_aead128_core (
                         auth_ok <= is_decrypt ? 1'b1 : 1'b0;
                         // This first clean milestone supports only AEAD encrypt
                         // with empty AD and empty plaintext.
-                        if (ad_len > 16'd7 || data_len > 16'd7) begin
+                        if (ad_len > 16'd8 || data_len > 16'd8) begin
                             error <= 1'b1;
                             done  <= 1'b1;
                             state <= S_IDLE;
@@ -412,7 +414,7 @@ module sdmc_aead128_core (
 
                 S_AD_WAIT: begin
                     if (!in_empty) begin
-                        if (tok_kind != `SDMC_TOK_AD || tok_bytes == 4'd0 || tok_bytes > 4'd7) begin
+                        if (tok_kind != `SDMC_TOK_AD || tok_bytes == 4'd0 || tok_bytes > 4'd8) begin
                             state <= S_ERR;
                             error <= 1'b1;
                         end else begin
@@ -428,11 +430,24 @@ module sdmc_aead128_core (
                     state <= S_AD_ABSORB;
                 end
 
-                // Single partial AD block for first official AD-only KATs:
-                // x0 ^= AD || pad, x1 unchanged, then p8, then domain separation.
+                // Single AD block for short official KATs:
+                // AD < 8: x0 ^= AD || pad
+                // AD = 8: x0 ^= AD, x1 ^= pad(0)
                 S_AD_ABSORB: begin
                     if (perm_ready) begin
-                        set_wr(3'd0, p0 ^ ((ad_word_q & mask_n(ad_bytes_q)) ^ pad_n(ad_bytes_q)));
+                        if (ad_bytes_q == 4'd8) begin
+                            set_wr(3'd0, p0 ^ ad_word_q);
+                            state <= S_AD_PAD_X1;
+                        end else begin
+                            set_wr(3'd0, p0 ^ ((ad_word_q & mask_n(ad_bytes_q)) ^ pad_n(ad_bytes_q)));
+                            state <= S_AD_P8_START;
+                        end
+                    end
+                end
+
+                S_AD_PAD_X1: begin
+                    if (perm_ready) begin
+                        set_wr(3'd1, p1 ^ 64'h0000_0000_0000_0001);
                         state <= S_AD_P8_START;
                     end
                 end
@@ -464,7 +479,7 @@ module sdmc_aead128_core (
 
                 S_MSG_WAIT: begin
                     if (!in_empty) begin
-                        if (tok_kind != `SDMC_TOK_MSG || tok_bytes == 4'd0 || tok_bytes > 4'd7) begin
+                        if (tok_kind != `SDMC_TOK_MSG || tok_bytes == 4'd0 || tok_bytes > 4'd8) begin
                             state <= S_ERR;
                             error <= 1'b1;
                         end else begin
@@ -480,19 +495,37 @@ module sdmc_aead128_core (
                     state <= S_MSG_ABSORB;
                 end
 
-                // Last partial data block, no p8 on last block.
-                // Encrypt: output C = S0 ^ (P || pad), absorb C into x0.
-                // Decrypt: output P = S0 ^ C, absorb (C || pad) into x0.
+                // Last data block for short official KATs:
+                // len < 8: one partial word with padding in x0.
+                // len = 8: full x0 word, padding moves to x1.
                 S_MSG_ABSORB: begin
                     if (perm_ready) begin
-                        if (is_decrypt) begin
-                            ct_word_q <= (p0 ^ msg_word_q) & mask_n(msg_bytes_q);
-                            set_wr(3'd0, (p0 & ~mask_n(msg_bytes_q)) ^
-                                         ((msg_word_q & mask_n(msg_bytes_q)) ^ pad_n(msg_bytes_q)));
+                        if (msg_bytes_q == 4'd8) begin
+                            if (is_decrypt) begin
+                                ct_word_q <= p0 ^ msg_word_q;
+                                set_wr(3'd0, msg_word_q);
+                            end else begin
+                                ct_word_q <= p0 ^ msg_word_q;
+                                set_wr(3'd0, p0 ^ msg_word_q);
+                            end
+                            state <= S_MSG_PAD_X1;
                         end else begin
-                            ct_word_q <= p0 ^ ((msg_word_q & mask_n(msg_bytes_q)) ^ pad_n(msg_bytes_q));
-                            set_wr(3'd0, p0 ^ ((msg_word_q & mask_n(msg_bytes_q)) ^ pad_n(msg_bytes_q)));
+                            if (is_decrypt) begin
+                                ct_word_q <= (p0 ^ msg_word_q) & mask_n(msg_bytes_q);
+                                set_wr(3'd0, (p0 & ~mask_n(msg_bytes_q)) ^
+                                             ((msg_word_q & mask_n(msg_bytes_q)) ^ pad_n(msg_bytes_q)));
+                            end else begin
+                                ct_word_q <= p0 ^ ((msg_word_q & mask_n(msg_bytes_q)) ^ pad_n(msg_bytes_q));
+                                set_wr(3'd0, p0 ^ ((msg_word_q & mask_n(msg_bytes_q)) ^ pad_n(msg_bytes_q)));
+                            end
+                            state <= S_MSG_EMIT;
                         end
+                    end
+                end
+
+                S_MSG_PAD_X1: begin
+                    if (perm_ready) begin
+                        set_wr(3'd1, p1 ^ 64'h0000_0000_0000_0001);
                         state <= S_MSG_EMIT;
                     end
                 end
