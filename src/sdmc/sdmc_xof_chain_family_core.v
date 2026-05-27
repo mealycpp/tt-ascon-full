@@ -156,7 +156,12 @@ module sdmc_xof_chain_family_core (
             inner_start <= 1'b0;
             done        <= 1'b0;
 
-            if (pass0_q && inner_in_pop && (in_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB] == `SDMC_TOK_CS)) begin
+            // Cache the first-pass CS token while it is present.
+            // Do not wait for inner_in_pop here: inner_in_pop is registered by
+            // the inner core, so the outer testbench may already have advanced
+            // in_token by the time this parent FSM observes the pop.
+            if (pass0_q && !in_empty &&
+                (in_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB] == `SDMC_TOK_CS)) begin
                 cs_token_q    <= in_token;
                 cs_token_seen <= 1'b1;
             end
