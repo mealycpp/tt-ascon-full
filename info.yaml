@@ -50,6 +50,8 @@ project:
 
     - "project_sdmc_top.v"
 
+    - "sdmc/sdmc_uart_token_bridge.v"
+    - "project_sdmc_uart_top.v"
 pinout:
   ui[0]: "uart0_rx_ctrl"
   ui[1]: "uart1_rx_ad"
