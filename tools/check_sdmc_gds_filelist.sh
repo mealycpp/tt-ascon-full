@@ -90,8 +90,15 @@ for f in "${REQUIRED[@]}"; do
     if is_preserved_non_gds_rtl "$f"; then
       printf "%s\tPASS\tpreserved RTL, intentionally excluded from shared-HX GDS top\n" "$f" >> "$RESULTS"
     else
-      printf "%s\tWARN\tnot referenced in common manifest/source lists\n" "$f" >> "$RESULTS"
-      warn=$((warn + 1))
+      case "$f" in
+      src/sdmc/sdmc_xof_family_core.v|src/sdmc/sdmc_xof_chain_family_core.v)
+        printf "%s\tPASS\tpreserved RTL, intentionally excluded from LWC GDS top\n" "$f" >> "$RESULTS"
+        ;;
+      *)
+        printf "%s\tWARN\tnot referenced in common manifest/source lists\n" "$f" >> "$RESULTS"
+        warn=$((warn + 1))
+        ;;
+    esac
     fi
   fi
 done

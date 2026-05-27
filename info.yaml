@@ -25,9 +25,9 @@ project:
     - "sdmc/sdmc_stream_shell.v"
     - "sdmc/sdmc_config_regs.v"
     - "sdmc/sdmc_ascon_perm_unit64.v"
-    - "sdmc/sdmc_xof_family_core.v"
-    - "sdmc/sdmc_xof_chain_family_core.v"
-    - "sdmc/sdmc_crypto_top_hx.v"
+    - "sdmc/sdmc_hash256_core.v"
+    - "sdmc/sdmc_aead128_core.v"
+    - "sdmc/sdmc_crypto_top.v"
     - "sdmc/sdmc_uart_token_bridge.v"
     - "project_sdmc_uart_top.v"
 
