@@ -1,5 +1,10 @@
 
 echo
+echo "=== sdmc_uart_top_syntax ==="
+./tools/check_sdmc_uart_top_syntax.sh
+
+
+echo
 echo "=== sdmc_crypto_top_syntax ==="
 ./tools/check_sdmc_crypto_top_syntax.sh
 

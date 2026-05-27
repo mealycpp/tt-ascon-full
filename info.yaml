@@ -3,13 +3,13 @@ project:
   title:        "ASCON Integrated Crypto Processor"
   author:       "Dr. Mohamed El-Hadedy"
   discord:      ""
-  description:  "Reconfigurable ASCON cryptographic processor: AEAD-128, Hash256, XOF128, CXOF128 with chained modes, plus on-chip TRNG and Hash_DRBG. NIST SP 800-232 compliant. Three UART interface."
+  description:  "SDMC ASCON cryptographic processor with UART command/control, HASH256, XOF128, CXOF128, chained XOF/CXOF, and AEAD-128 encrypt/decrypt. UART0 carries command frames, UART1 carries key/nonce/AD/CS bytes, and UART2 carries message/tag input and result output."
   language:     "Verilog"
   clock_hz:     50000000
 
   tiles: "4x4"
 
-  top_module:  "tt_um_mealycpp_ascon_full"
+  top_module:  "tt_um_mealycpp_ascon_sdmc_uart"
 
   source_files:
     - "project.v"
@@ -53,22 +53,22 @@ project:
     - "sdmc/sdmc_uart_token_bridge.v"
     - "project_sdmc_uart_top.v"
 pinout:
-  ui[0]: "uart0_rx_ctrl"
-  ui[1]: "uart1_rx_ad"
-  ui[2]: "uart2_rx_data"
-  ui[3]: "ext_entropy_in"
+  ui[0]: "uart0_rx_cmd"
+  ui[1]: "uart1_rx_key_nonce_ad_cs"
+  ui[2]: "uart2_rx_msg_tag"
+  ui[3]: "reserved"
   ui[4]: ""
   ui[5]: ""
   ui[6]: ""
   ui[7]: ""
 
-  uo[0]: "uart0_tx"
-  uo[1]: "uart1_tx"
-  uo[2]: "uart2_tx"
+  uo[0]: "uart0_tx_idle"
+  uo[1]: "uart1_tx_idle"
+  uo[2]: "uart2_tx_result"
   uo[3]: "busy"
   uo[4]: "done"
-  uo[5]: "frame_error_sticky"
-  uo[6]: "bg_lag_tied0"
+  uo[5]: "error_sticky"
+  uo[6]: "auth_ok"
   uo[7]: "heartbeat"
 
   uio[0]: ""
