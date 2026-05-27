@@ -12,3 +12,12 @@ python3 tools/sdmc_gds_risk_audit_pretty.py | tee reports/sdmc_massive_gds_risk_
 
 echo
 echo "PASS sdmc_massive_regression"
+
+echo
+echo "=== sdmc_chain_vector_regression ==="
+./tools/run_sdmc_chain_vector_regression.sh
+
+echo
+echo "=== sdmc_aead_official_matrix ==="
+./tools/run_sdmc_aead_official_matrix.sh
+
