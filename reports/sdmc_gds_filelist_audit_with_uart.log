@@ -1,0 +1,40 @@
+=== SDMC GDS FILELIST AUDIT ===
+
+=== Backup / generated RTL check ===
+
+=== SDMC GDS FILELIST SUMMARY ===
++-------------------------------------------------------------------+--------+------------------------------------------+
+| Item                                                              | Status | Detail                                   |
++-------------------------------------------------------------------+--------+------------------------------------------+
+| src/ascon_round.v                                                 | [32mPASS ✅[0m | file exists                              |
+| src/ascon_permutation.v                                           | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_fifo.v                                              | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_token_fifo.v                                        | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_stream_ingress.v                                    | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_stream_egress.v                                     | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_stream_shell.v                                      | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_config_regs.v                                       | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_ascon_perm_unit64.v                                 | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_hash256_core.v                                      | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_xof_family_core.v                                   | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_xof_chain_family_core.v                             | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_aead128_core.v                                      | [32mPASS ✅[0m | file exists                              |
+| src/sdmc/sdmc_crypto_top.v                                        | [32mPASS ✅[0m | file exists                              |
+| info.yaml                                                         | [32mPASS ✅[0m | manifest found                           |
+| src/ascon_round.v                                                 | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/ascon_permutation.v                                           | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_fifo.v                                              | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_token_fifo.v                                        | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_stream_ingress.v                                    | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_stream_egress.v                                     | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_stream_shell.v                                      | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_config_regs.v                                       | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_ascon_perm_unit64.v                                 | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_hash256_core.v                                      | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_xof_family_core.v                                   | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_xof_chain_family_core.v                             | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_aead128_core.v                                      | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src/sdmc/sdmc_crypto_top.v                                        | [32mPASS ✅[0m | referenced by manifest/source list       |
+| src backup files                                                  | [32mPASS ✅[0m | no backup/generated RTL under src        |
++-------------------------------------------------------------------+--------+------------------------------------------+
+[32mPASS sdmc_gds_filelist_audit: 0 failures, 0 warning(s)[0m

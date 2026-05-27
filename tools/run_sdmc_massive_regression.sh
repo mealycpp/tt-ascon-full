@@ -26,3 +26,7 @@ echo
 echo "=== sdmc_aead_official_matrix ==="
 ./tools/run_sdmc_aead_official_matrix.sh
 
+echo
+echo "=== sdmc_uart_smoke ==="
+./tools/run_sdmc_uart_smoke.sh
+
