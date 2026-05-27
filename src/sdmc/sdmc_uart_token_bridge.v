@@ -105,75 +105,19 @@ module sdmc_uart_token_bridge (
         (host_mode_q == `SDMC_HOST_CXOF) ||
         (host_mode_q == `SDMC_HOST_CXOF_CHAIN);
 
-    reg [3:0] next_phase_w;
-
-    always @* begin
-        next_phase_w = PH_NONE;
-
-        case (phase)
-            PH_NONE: begin
-                if (host_is_aead) begin
-                    next_phase_w = PH_KEY;
-                end else if (host_is_cxof && (cs_bytes_q != 16'd0)) begin
-                    next_phase_w = PH_CS;
-                end else if (data_len_q != 16'd0) begin
-                    next_phase_w = PH_MSG;
-                end else begin
-                    next_phase_w = PH_NONE;
-                end
-            end
-
-            PH_KEY: begin
-                next_phase_w = PH_NONCE;
-            end
-
-            PH_NONCE: begin
-                if (ad_len_q != 16'd0) begin
-                    next_phase_w = PH_AD;
-                end else if (data_len_q != 16'd0) begin
-                    next_phase_w = PH_MSG;
-                end else if (dec_q) begin
-                    next_phase_w = PH_TAG;
-                end else begin
-                    next_phase_w = PH_NONE;
-                end
-            end
-
-            PH_AD: begin
-                if (data_len_q != 16'd0) begin
-                    next_phase_w = PH_MSG;
-                end else if (dec_q) begin
-                    next_phase_w = PH_TAG;
-                end else begin
-                    next_phase_w = PH_NONE;
-                end
-            end
-
-            PH_CS: begin
-                if (data_len_q != 16'd0) begin
-                    next_phase_w = PH_MSG;
-                end else begin
-                    next_phase_w = PH_NONE;
-                end
-            end
-
-            PH_MSG: begin
-                if (dec_q) begin
-                    next_phase_w = PH_TAG;
-                end else begin
-                    next_phase_w = PH_NONE;
-                end
-            end
-
-            PH_TAG: begin
-                next_phase_w = PH_NONE;
-            end
-
-            default: begin
-                next_phase_w = PH_NONE;
-            end
-        endcase
-    end
+    wire [3:0] next_phase_w =
+        (phase == PH_NONE)  ? (host_is_aead ? PH_KEY :
+                              ((host_is_cxof && (cs_bytes_q != 16'd0)) ? PH_CS :
+                              ((data_len_q != 16'd0) ? PH_MSG : PH_NONE))) :
+        (phase == PH_KEY)   ? PH_NONCE :
+        (phase == PH_NONCE) ? ((ad_len_q != 16'd0) ? PH_AD :
+                              ((data_len_q != 16'd0) ? PH_MSG :
+                              (dec_q ? PH_TAG : PH_NONE))) :
+        (phase == PH_AD)    ? ((data_len_q != 16'd0) ? PH_MSG :
+                              (dec_q ? PH_TAG : PH_NONE)) :
+        (phase == PH_CS)    ? ((data_len_q != 16'd0) ? PH_MSG : PH_NONE) :
+        (phase == PH_MSG)   ? (dec_q ? PH_TAG : PH_NONE) :
+        PH_NONE;
 
     task load_phase;
         input [3:0] ph;
