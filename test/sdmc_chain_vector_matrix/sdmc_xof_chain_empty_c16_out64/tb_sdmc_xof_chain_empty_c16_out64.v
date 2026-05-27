@@ -38,6 +38,7 @@ module tb_sdmc_xof_chain_empty_c16_out64;
         .rst_n(rst_n),
         .clear(clear),
         .start(start),
+        .use_hash    (1'b0),
         .use_cxof(1'b0),
         .chain_count(16'd16),
         .msg_len(16'd0),

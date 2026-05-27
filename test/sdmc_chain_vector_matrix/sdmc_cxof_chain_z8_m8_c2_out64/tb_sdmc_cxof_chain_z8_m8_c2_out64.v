@@ -38,6 +38,7 @@ module tb_sdmc_cxof_chain_z8_m8_c2_out64;
         .rst_n(rst_n),
         .clear(clear),
         .start(start),
+        .use_hash    (1'b0),
         .use_cxof(1'b1),
         .chain_count(16'd2),
         .msg_len(16'd8),

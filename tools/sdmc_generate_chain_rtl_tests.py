@@ -98,6 +98,7 @@ module tb_{name};
         .rst_n(rst_n),
         .clear(clear),
         .start(start),
+        .use_hash    (1'b0),
         .use_cxof({use_cxof}),
         .chain_count(16'd{chain_count}),
         .msg_len(16'd{msg_len}),

@@ -42,6 +42,7 @@ module tb_sdmc_xof_family_core_cxof;
         .rst_n(rst_n),
         .clear(clear),
         .start(start),
+        .use_hash    (1'b0),
         .use_cxof(1'b1),
         .chain_count(16'd1),
         .cs_len(cs_len),

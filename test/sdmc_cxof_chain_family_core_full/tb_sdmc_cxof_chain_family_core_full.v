@@ -39,6 +39,7 @@ module tb_sdmc_cxof_chain_family_core_full;
         .rst_n(rst_n),
         .clear(clear),
         .start(start),
+        .use_hash    (1'b0),
         .use_cxof(1'b1),
         .chain_count(16'd5),
         .msg_len(16'd5),

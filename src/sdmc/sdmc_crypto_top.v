@@ -160,6 +160,7 @@ module sdmc_crypto_top #(
         .rst_n       (rst_n),
         .clear       (clear),
         .start       (xof_start),
+        .use_hash    (1'b0),
         .use_cxof    (use_cxof),
         .chain_count (chain_count),
         .msg_len     (msg_len),
