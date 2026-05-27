@@ -1,0 +1,3 @@
+Generated 87 AEAD official matrix tests
+Manifest: /home/hadedy/tt-ascon-full/test/sdmc_aead128_official_matrix/manifest.txt
+PASS sdmc_aead_official_matrix
