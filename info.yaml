@@ -48,6 +48,8 @@ project:
     - "sdmc/sdmc_aead128_core.v"
     - "sdmc/sdmc_crypto_top.v"
 
+    - "project_sdmc_top.v"
+
 pinout:
   ui[0]: "uart0_rx_ctrl"
   ui[1]: "uart1_rx_ad"
