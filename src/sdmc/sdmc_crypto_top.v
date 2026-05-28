@@ -118,33 +118,17 @@ module sdmc_crypto_top #(
     wire sel_xof  = (program_id == `SDMC_PROG_XOF_CHAIN_FAMILY);
     wire sel_aead = (program_id == `SDMC_PROG_AEAD_FAMILY);
 
-    wire hash_start = start & sel_hash;
     wire aead_start = start & sel_aead;
 
-    wire [`SDMC_TOKEN_W-1:0] hash_out_token;
-    wire                     hash_out_push;
+    // LWC GF180 cut: HASH256 RTL is preserved in the repository but not
+    // instantiated in this reduced GDS top. HASH program IDs return error.
+    wire [`SDMC_TOKEN_W-1:0] hash_out_token = {`SDMC_TOKEN_W{1'b0}};
+    wire                     hash_out_push  = 1'b0;
     wire                     hash_out_full;
-    wire                     hash_in_pop;
-    wire                     hash_busy;
-    wire                     hash_done;
-    wire                     hash_error;
-
-    sdmc_hash256_core u_hash (
-        .clk       (clk),
-        .rst_n     (rst_n),
-        .clear     (clear),
-        .start     (hash_start),
-        .msg_len   (msg_len),
-        .in_token  (core_in_token),
-        .in_empty  (core_in_empty),
-        .in_pop    (hash_in_pop),
-        .out_token (hash_out_token),
-        .out_push  (hash_out_push),
-        .out_full  (hash_out_full),
-        .busy      (hash_busy),
-        .done      (hash_done),
-        .error     (hash_error)
-    );
+    wire                     hash_in_pop    = 1'b0;
+    wire                     hash_busy      = 1'b0;
+    wire                     hash_done      = sel_hash & start;
+    wire                     hash_error     = sel_hash & start;
 
     // LWC GF180 cut: XOF/CXOF RTL is preserved in the repository but not
     // instantiated in this reduced GDS top. XOF program IDs return error.
