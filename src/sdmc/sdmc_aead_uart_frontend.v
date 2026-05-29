@@ -218,6 +218,12 @@ module sdmc_aead_uart_frontend (
                 token_full_q <= 1'b0;
             end
 
+            // Frontend is done once all expected input bytes have been packed
+            // and the final staged token has been accepted by the AEAD core.
+            if (busy && phase == PH_DONE && !token_full_q) begin
+                busy <= 1'b0;
+            end
+
             // UART0 command parser: A5 mode flags ad_lo ad_hi data_lo data_hi out_lo out_hi cc_lo cc_hi cs_lo cs_hi 5A
             if (rx0_valid) begin
                 case (cmd_state)
