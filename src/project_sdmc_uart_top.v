@@ -111,8 +111,8 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     // Uses one active serializer register plus a small circular token queue.
     // This avoids the old pend0..pend4 shift-overwrite bug when AEAD output
     // and UART serializer promotion happen near the same cycle.
-    localparam integer OUTQ_DEPTH = 8;
-    localparam [3:0] OUTQ_DEPTH_COUNT = 4'd8;
+    localparam integer OUTQ_DEPTH = 4;
+    localparam [3:0] OUTQ_DEPTH_COUNT = 4'd4;
 
     reg [63:0] ser_data_q;
     reg [3:0]  ser_count_q;
@@ -123,8 +123,8 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     reg [63:0] outq_data_q  [0:OUTQ_DEPTH-1];
     reg [3:0]  outq_countb_q[0:OUTQ_DEPTH-1];
     reg [3:0]  outq_kind_q  [0:OUTQ_DEPTH-1];
-    reg [2:0]  outq_wr_ptr_q;
-    reg [2:0]  outq_rd_ptr_q;
+    reg [1:0]  outq_wr_ptr_q;
+    reg [1:0]  outq_rd_ptr_q;
     reg [3:0]  outq_count_q;
 
     wire outq_full  = (outq_count_q == OUTQ_DEPTH_COUNT);
@@ -168,8 +168,8 @@ module tt_um_mealycpp_ascon_sdmc_uart (
             ser_kind_q      <= 4'd0;
             ser_valid_q     <= 1'b0;
 
-            outq_wr_ptr_q   <= 3'd0;
-            outq_rd_ptr_q   <= 3'd0;
+            outq_wr_ptr_q   <= 2'd0;
+            outq_rd_ptr_q   <= 2'd0;
             outq_count_q    <= 4'd0;
 
             for (outq_i = 0; outq_i < OUTQ_DEPTH; outq_i = outq_i + 1) begin
@@ -184,8 +184,8 @@ module tt_um_mealycpp_ascon_sdmc_uart (
             ser_kind_q      <= 4'd0;
             ser_valid_q     <= 1'b0;
 
-            outq_wr_ptr_q   <= 3'd0;
-            outq_rd_ptr_q   <= 3'd0;
+            outq_wr_ptr_q   <= 2'd0;
+            outq_rd_ptr_q   <= 2'd0;
             outq_count_q    <= 4'd0;
 
             for (outq_i = 0; outq_i < OUTQ_DEPTH; outq_i = outq_i + 1) begin
@@ -206,7 +206,7 @@ module tt_um_mealycpp_ascon_sdmc_uart (
                     outq_data_q[outq_wr_ptr_q]   <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
                     outq_countb_q[outq_wr_ptr_q] <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
                     outq_kind_q[outq_wr_ptr_q]   <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
-                    outq_wr_ptr_q                <= outq_wr_ptr_q + 3'd1;
+                    outq_wr_ptr_q                <= outq_wr_ptr_q + 2'd1;
                     outq_count_q                 <= outq_count_q + 4'd1;
                 end
             end
@@ -221,7 +221,7 @@ module tt_um_mealycpp_ascon_sdmc_uart (
                         ser_kind_q    <= outq_kind_q[outq_rd_ptr_q];
                         ser_idx_q     <= 4'd0;
                         ser_valid_q   <= 1'b1;
-                        outq_rd_ptr_q <= outq_rd_ptr_q + 3'd1;
+                        outq_rd_ptr_q <= outq_rd_ptr_q + 2'd1;
                         outq_count_q  <= outq_count_q - 4'd1;
                     end else begin
                         ser_valid_q <= 1'b0;

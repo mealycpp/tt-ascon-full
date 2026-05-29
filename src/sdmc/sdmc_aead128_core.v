@@ -94,9 +94,6 @@ module sdmc_aead128_core (
     reg [15:0] ad_left_q;
     reg [15:0] data_left_q;
 
-    reg [15:0] ad_block_start_left_q;
-    reg [15:0] data_block_start_left_q;
-
     reg [63:0] w0_q;
     reg [63:0] w1_q;
     reg [3:0]  w0_bytes_q;
@@ -242,8 +239,6 @@ module sdmc_aead128_core (
             is_decrypt_q <= 1'b0;
             ad_left_q   <= 16'd0;
             data_left_q <= 16'd0;
-            ad_block_start_left_q <= 16'd0;
-            data_block_start_left_q <= 16'd0;
 
             perm_wr_en   <= 1'b0;
             perm_wr_lane <= 3'd0;
@@ -269,8 +264,6 @@ module sdmc_aead128_core (
             is_decrypt_q <= 1'b0;
             ad_left_q   <= 16'd0;
             data_left_q <= 16'd0;
-            ad_block_start_left_q <= 16'd0;
-            data_block_start_left_q <= 16'd0;
 
             perm_wr_en   <= 1'b0;
             perm_wr_lane <= 3'd0;
@@ -440,7 +433,6 @@ module sdmc_aead128_core (
                         block_pad_only_q <= 1'b1;
                         state            <= S_AD_X0;
                     end else begin
-                        ad_block_start_left_q <= ad_left_q;
                         state <= S_AD_GET_W0;
                     end
                 end
@@ -583,7 +575,6 @@ module sdmc_aead128_core (
                         block_pad_only_q <= 1'b1;
                         state            <= S_DATA_X0;
                     end else begin
-                        data_block_start_left_q <= data_left_q;
                         state <= S_DATA_GET_W0;
                     end
                 end
