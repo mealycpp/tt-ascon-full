@@ -1,5 +1,7 @@
 `default_nettype none
 
+`include "sdmc_stream_defs.vh"
+
 module tt_um_mealycpp_ascon_sdmc_uart (
     input  wire [7:0] ui_in,
     output wire [7:0] uo_out,
@@ -28,224 +30,254 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire rx1_active;
     wire rx2_active;
 
-    uart_rx u_rx0 (.clk(clk), .rst_n(rst_n), .baud_div(baud_div), .rx(uart0_rx), .byte_out(rx0_byte), .byte_valid(rx0_valid), .rx_active(rx0_active));
-    uart_rx u_rx1 (.clk(clk), .rst_n(rst_n), .baud_div(baud_div), .rx(uart1_rx), .byte_out(rx1_byte), .byte_valid(rx1_valid), .rx_active(rx1_active));
-    uart_rx u_rx2 (.clk(clk), .rst_n(rst_n), .baud_div(baud_div), .rx(uart2_rx), .byte_out(rx2_byte), .byte_valid(rx2_valid), .rx_active(rx2_active));
-
-    wire [7:0] fifo0_dout;
-    wire [7:0] fifo1_dout;
-    wire [7:0] fifo2_dout;
-    wire fifo0_empty;
-    wire fifo1_empty;
-    wire fifo2_empty;
-    wire fifo0_full;
-    wire fifo1_full;
-    wire fifo2_full;
-    wire [3:0] fifo0_count;
-    wire [3:0] fifo1_count;
-    wire [3:0] fifo2_count;
-
-    wire parser_ready;
-    wire fifo0_pop = parser_ready && !fifo0_empty;
-
-    byte_fifo #(.DEPTH(8), .AW(3)) u_fifo0 (
-        .clk(clk), .rst_n(rst_n),
-        .wr_en(rx0_valid), .wr_data(rx0_byte), .full(fifo0_full),
-        .rd_en(fifo0_pop), .rd_data(fifo0_dout), .empty(fifo0_empty),
-        .count(fifo0_count)
+    uart_rx u_rx0 (
+        .clk(clk), .rst_n(rst_n), .baud_div(baud_div),
+        .rx(uart0_rx), .byte_out(rx0_byte),
+        .byte_valid(rx0_valid), .rx_active(rx0_active)
     );
 
-    wire fifo1_pop;
-    wire fifo2_pop;
-
-    byte_fifo #(.DEPTH(8), .AW(3)) u_fifo1 (
-        .clk(clk), .rst_n(rst_n),
-        .wr_en(rx1_valid), .wr_data(rx1_byte), .full(fifo1_full),
-        .rd_en(fifo1_pop), .rd_data(fifo1_dout), .empty(fifo1_empty),
-        .count(fifo1_count)
+    uart_rx u_rx1 (
+        .clk(clk), .rst_n(rst_n), .baud_div(baud_div),
+        .rx(uart1_rx), .byte_out(rx1_byte),
+        .byte_valid(rx1_valid), .rx_active(rx1_active)
     );
 
-    byte_fifo #(.DEPTH(8), .AW(3)) u_fifo2 (
-        .clk(clk), .rst_n(rst_n),
-        .wr_en(rx2_valid), .wr_data(rx2_byte), .full(fifo2_full),
-        .rd_en(fifo2_pop), .rd_data(fifo2_dout), .empty(fifo2_empty),
-        .count(fifo2_count)
+    uart_rx u_rx2 (
+        .clk(clk), .rst_n(rst_n), .baud_div(baud_div),
+        .rx(uart2_rx), .byte_out(rx2_byte),
+        .byte_valid(rx2_valid), .rx_active(rx2_active)
     );
 
-    wire [2:0]  mode_sel;
-    wire        is_decrypt;
-    wire        chain_enable;
-    wire        chain_debug;
-    wire [15:0] ad_total_bytes;
-    wire [15:0] data_total_bytes;
-    wire [15:0] out_length;
-    wire [15:0] chain_count;
-    wire [15:0] cs_total_bits;
-    wire        frame_valid;
-    wire        frame_error;
-    wire        parser_start_unused;
+    wire                     aead_start;
+    wire                     aead_is_decrypt;
+    wire [15:0]              aead_ad_len;
+    wire [15:0]              aead_data_len;
+    wire [`SDMC_TOKEN_W-1:0] aead_in_token;
+    wire                     aead_in_empty;
+    wire                     aead_in_pop;
+    wire                     front_busy;
+    wire                     front_error;
+    wire [3:0]               front_phase;
 
-    protocol_parser u_parser (
-        .clk(clk),
-        .rst_n(rst_n),
-        .in_byte(fifo0_dout),
-        .in_byte_valid(!fifo0_empty),
-        .in_byte_ready(parser_ready),
-        .mode_sel(mode_sel),
-        .is_decrypt(is_decrypt),
-        .chain_enable(chain_enable),
-        .chain_debug(chain_debug),
-        .ad_total_bytes(ad_total_bytes),
-        .data_total_bytes(data_total_bytes),
-        .out_length(out_length),
-        .chain_count(chain_count),
-        .cs_total_bits(cs_total_bits),
-        .frame_valid(frame_valid),
-        .frame_error(frame_error),
-        .start(parser_start_unused)
+    sdmc_aead_uart_frontend u_front (
+        .clk             (clk),
+        .rst_n           (rst_n),
+        .clear           (clear),
+
+        .rx0_byte        (rx0_byte),
+        .rx0_valid       (rx0_valid),
+        .rx1_byte        (rx1_byte),
+        .rx1_valid       (rx1_valid),
+        .rx2_byte        (rx2_byte),
+        .rx2_valid       (rx2_valid),
+
+        .aead_start      (aead_start),
+        .aead_is_decrypt (aead_is_decrypt),
+        .aead_ad_len     (aead_ad_len),
+        .aead_data_len   (aead_data_len),
+
+        .aead_in_token   (aead_in_token),
+        .aead_in_empty   (aead_in_empty),
+        .aead_in_pop     (aead_in_pop),
+
+        .busy            (front_busy),
+        .error           (front_error),
+        .phase_dbg       (front_phase)
     );
 
-    wire cfg_wr_en;
-    wire [3:0] cfg_wr_addr;
-    wire [63:0] cfg_wr_data;
-    wire sdmc_start;
+    wire [`SDMC_TOKEN_W-1:0] aead_out_token;
+    wire                     aead_out_push;
+    wire                     aead_out_full;
+    wire                     aead_busy;
+    wire                     aead_done;
+    wire                     aead_error;
+    wire                     aead_auth_ok;
 
-    wire [7:0] sdmc_in_byte;
-    wire [3:0] sdmc_in_kind;
-    wire sdmc_in_last;
-    wire sdmc_in_valid;
-    wire sdmc_in_ready;
+    sdmc_aead128_core u_aead (
+        .clk        (clk),
+        .rst_n      (rst_n),
+        .clear      (clear),
 
-    wire [7:0] sdmc_out_byte;
-    wire [3:0] sdmc_out_kind;
-    wire sdmc_out_last;
-    wire sdmc_out_valid;
-    wire sdmc_out_ready;
+        .start      (aead_start),
+        .is_decrypt (aead_is_decrypt),
+        .ad_len     (aead_ad_len),
+        .data_len   (aead_data_len),
 
-    wire sdmc_busy;
-    wire sdmc_done;
-    wire sdmc_error;
-    wire sdmc_auth_ok;
-    wire [3:0] host_mode;
-    wire [3:0] program_id;
-    wire [15:0] in_count;
-    wire [15:0] out_count;
+        .in_token   (aead_in_token),
+        .in_empty   (aead_in_empty),
+        .in_pop     (aead_in_pop),
 
-    wire bridge_busy;
-    wire bridge_error;
+        .out_token  (aead_out_token),
+        .out_push   (aead_out_push),
+        .out_full   (aead_out_full),
 
-    sdmc_uart_token_bridge u_token_bridge (
-        .clk(clk),
-        .rst_n(rst_n),
-        .clear(clear),
-
-        .frame_valid(frame_valid),
-        .mode_sel(mode_sel),
-        .is_decrypt(is_decrypt),
-        .ad_total_bytes(ad_total_bytes),
-        .data_total_bytes(data_total_bytes),
-        .out_length(out_length),
-        .chain_count(chain_count),
-        .cs_total_bits(cs_total_bits),
-
-        .cfg_wr_en(cfg_wr_en),
-        .cfg_wr_addr(cfg_wr_addr),
-        .cfg_wr_data(cfg_wr_data),
-        .sdmc_start(sdmc_start),
-
-        .uart1_byte(fifo1_dout),
-        .uart1_empty(fifo1_empty),
-        .uart1_rd_en(fifo1_pop),
-
-        .uart2_byte(fifo2_dout),
-        .uart2_empty(fifo2_empty),
-        .uart2_rd_en(fifo2_pop),
-
-        .in_byte(sdmc_in_byte),
-        .in_kind(sdmc_in_kind),
-        .in_last(sdmc_in_last),
-        .in_valid(sdmc_in_valid),
-        .in_ready(sdmc_in_ready),
-
-        .sdmc_done(sdmc_done),
-        .sdmc_error(sdmc_error),
-
-        .bridge_busy(bridge_busy),
-        .bridge_error(bridge_error)
+        .busy       (aead_busy),
+        .done       (aead_done),
+        .error      (aead_error),
+        .auth_ok    (aead_auth_ok)
     );
 
-    sdmc_crypto_top #(.FIFO_DEPTH(8), .FIFO_AW(3)) u_sdmc (
-        .clk(clk),
-        .rst_n(rst_n),
-        .clear(clear),
+    // Tiny output serializer: AEAD output tokens -> UART2 bytes.
+    // No SRAM/deep FIFO. Uses one active token plus five pending token registers.
+    // Capacity covers max tested AEAD burst up to 32-byte data:
+    // ceil(32/8) data tokens + 2 tag tokens = 6 total tokens.
+    reg [63:0] ser_data_q;
+    reg [3:0]  ser_count_q;
+    reg [3:0]  ser_idx_q;
+    reg [3:0]  ser_kind_q;
+    reg        ser_valid_q;
 
-        .start(sdmc_start),
+    reg [63:0] pend0_data_q;
+    reg [3:0]  pend0_count_q;
+    reg [3:0]  pend0_kind_q;
+    reg        pend0_valid_q;
 
-        .cfg_wr_en(cfg_wr_en),
-        .cfg_wr_addr(cfg_wr_addr),
-        .cfg_wr_data(cfg_wr_data),
+    reg [63:0] pend1_data_q;
+    reg [3:0]  pend1_count_q;
+    reg [3:0]  pend1_kind_q;
+    reg        pend1_valid_q;
 
-        .in_byte(sdmc_in_byte),
-        .in_kind(sdmc_in_kind),
-        .in_last(sdmc_in_last),
-        .in_valid(sdmc_in_valid),
-        .in_ready(sdmc_in_ready),
+    reg [63:0] pend2_data_q;
+    reg [3:0]  pend2_count_q;
+    reg [3:0]  pend2_kind_q;
+    reg        pend2_valid_q;
 
-        .out_byte(sdmc_out_byte),
-        .out_kind(sdmc_out_kind),
-        .out_last(sdmc_out_last),
-        .out_valid(sdmc_out_valid),
-        .out_ready(sdmc_out_ready),
+    reg [63:0] pend3_data_q;
+    reg [3:0]  pend3_count_q;
+    reg [3:0]  pend3_kind_q;
+    reg        pend3_valid_q;
 
-        .busy(sdmc_busy),
-        .done(sdmc_done),
-        .error(sdmc_error),
-        .auth_ok(sdmc_auth_ok),
+    reg [63:0] pend4_data_q;
+    reg [3:0]  pend4_count_q;
+    reg [3:0]  pend4_kind_q;
+    reg        pend4_valid_q;
 
-        .host_mode(host_mode),
-        .program_id(program_id),
+    wire [3:0] out_kind = ser_kind_q;
 
-        .in_count(in_count),
-        .out_count(out_count)
-    );
+    assign aead_out_full = ser_valid_q &&
+                           pend0_valid_q && pend1_valid_q && pend2_valid_q &&
+                           pend3_valid_q && pend4_valid_q;
 
-    wire [7:0] tx_fifo_dout;
-    wire tx_fifo_empty;
-    wire tx_fifo_full;
-    wire [3:0] tx_fifo_count;
     wire tx_ready;
-    wire tx_send = tx_ready && !tx_fifo_empty;
+    wire tx_send = ser_valid_q && tx_ready;
+    wire ser_last_byte = tx_send && ((ser_idx_q + 4'd1) >= ser_count_q);
 
-    assign sdmc_out_ready = !tx_fifo_full;
+    reg [7:0] tx_byte;
 
-    byte_fifo #(.DEPTH(8), .AW(3)) u_tx_fifo (
-        .clk(clk), .rst_n(rst_n),
-        .wr_en(sdmc_out_valid && sdmc_out_ready),
-        .wr_data(sdmc_out_byte),
-        .full(tx_fifo_full),
-        .rd_en(tx_send),
-        .rd_data(tx_fifo_dout),
-        .empty(tx_fifo_empty),
-        .count(tx_fifo_count)
-    );
+    always @* begin
+        case (ser_idx_q[2:0])
+            3'd0: tx_byte = ser_data_q[7:0];
+            3'd1: tx_byte = ser_data_q[15:8];
+            3'd2: tx_byte = ser_data_q[23:16];
+            3'd3: tx_byte = ser_data_q[31:24];
+            3'd4: tx_byte = ser_data_q[39:32];
+            3'd5: tx_byte = ser_data_q[47:40];
+            3'd6: tx_byte = ser_data_q[55:48];
+            3'd7: tx_byte = ser_data_q[63:56];
+            default: tx_byte = 8'd0;
+        endcase
+    end
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            ser_data_q <= 64'd0; ser_count_q <= 4'd0; ser_idx_q <= 4'd0; ser_kind_q <= 4'd0; ser_valid_q <= 1'b0;
+
+            pend0_data_q <= 64'd0; pend0_count_q <= 4'd0; pend0_kind_q <= 4'd0; pend0_valid_q <= 1'b0;
+            pend1_data_q <= 64'd0; pend1_count_q <= 4'd0; pend1_kind_q <= 4'd0; pend1_valid_q <= 1'b0;
+            pend2_data_q <= 64'd0; pend2_count_q <= 4'd0; pend2_kind_q <= 4'd0; pend2_valid_q <= 1'b0;
+            pend3_data_q <= 64'd0; pend3_count_q <= 4'd0; pend3_kind_q <= 4'd0; pend3_valid_q <= 1'b0;
+            pend4_data_q <= 64'd0; pend4_count_q <= 4'd0; pend4_kind_q <= 4'd0; pend4_valid_q <= 1'b0;
+        end else if (clear) begin
+            ser_data_q <= 64'd0; ser_count_q <= 4'd0; ser_idx_q <= 4'd0; ser_kind_q <= 4'd0; ser_valid_q <= 1'b0;
+
+            pend0_valid_q <= 1'b0;
+            pend1_valid_q <= 1'b0;
+            pend2_valid_q <= 1'b0;
+            pend3_valid_q <= 1'b0;
+            pend4_valid_q <= 1'b0;
+        end else begin
+            // Accept AEAD output token.
+            if (aead_out_push && !aead_out_full) begin
+                if (!ser_valid_q) begin
+                    ser_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
+                    ser_count_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
+                    ser_idx_q   <= 4'd0;
+                    ser_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                    ser_valid_q <= 1'b1;
+                end else if (!pend0_valid_q) begin
+                    pend0_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
+                    pend0_count_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
+                    pend0_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                    pend0_valid_q <= 1'b1;
+                end else if (!pend1_valid_q) begin
+                    pend1_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
+                    pend1_count_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
+                    pend1_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                    pend1_valid_q <= 1'b1;
+                end else if (!pend2_valid_q) begin
+                    pend2_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
+                    pend2_count_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
+                    pend2_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                    pend2_valid_q <= 1'b1;
+                end else if (!pend3_valid_q) begin
+                    pend3_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
+                    pend3_count_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
+                    pend3_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                    pend3_valid_q <= 1'b1;
+                end else if (!pend4_valid_q) begin
+                    pend4_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
+                    pend4_count_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
+                    pend4_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                    pend4_valid_q <= 1'b1;
+                end
+            end
+
+            // Serialize active token.
+            if (tx_send) begin
+                if (ser_last_byte) begin
+                    if (pend0_valid_q) begin
+                        // Promote pend0 into active.
+                        ser_data_q  <= pend0_data_q;
+                        ser_count_q <= pend0_count_q;
+                        ser_idx_q   <= 4'd0;
+                        ser_kind_q  <= pend0_kind_q;
+                        ser_valid_q <= 1'b1;
+
+                        // Shift pending queue down.
+                        pend0_data_q  <= pend1_data_q; pend0_count_q <= pend1_count_q; pend0_kind_q <= pend1_kind_q; pend0_valid_q <= pend1_valid_q;
+                        pend1_data_q  <= pend2_data_q; pend1_count_q <= pend2_count_q; pend1_kind_q <= pend2_kind_q; pend1_valid_q <= pend2_valid_q;
+                        pend2_data_q  <= pend3_data_q; pend2_count_q <= pend3_count_q; pend2_kind_q <= pend3_kind_q; pend2_valid_q <= pend3_valid_q;
+                        pend3_data_q  <= pend4_data_q; pend3_count_q <= pend4_count_q; pend3_kind_q <= pend4_kind_q; pend3_valid_q <= pend4_valid_q;
+                        pend4_valid_q <= 1'b0;
+                    end else begin
+                        ser_valid_q <= 1'b0;
+                        ser_idx_q   <= 4'd0;
+                    end
+                end else begin
+                    ser_idx_q <= ser_idx_q + 4'd1;
+                end
+            end
+        end
+    end
 
     wire uart2_tx;
 
     uart_tx u_tx2 (
-        .clk(clk),
-        .rst_n(rst_n),
-        .baud_div(baud_div),
-        .byte_in(tx_fifo_dout),
-        .send(tx_send),
-        .ready(tx_ready),
-        .tx(uart2_tx)
+        .clk      (clk),
+        .rst_n    (rst_n),
+        .baud_div (baud_div),
+        .byte_in  (tx_byte),
+        .send     (tx_send),
+        .ready    (tx_ready),
+        .tx       (uart2_tx)
     );
 
-    reg frame_error_sticky;
+    reg error_sticky;
     always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) frame_error_sticky <= 1'b0;
-        else if (frame_error || bridge_error || sdmc_error) frame_error_sticky <= 1'b1;
-        else if (frame_valid) frame_error_sticky <= 1'b0;
+        if (!rst_n) error_sticky <= 1'b0;
+        else if (clear) error_sticky <= 1'b0;
+        else if (front_error || aead_error) error_sticky <= 1'b1;
+        else if (aead_start) error_sticky <= 1'b0;
     end
 
     reg [23:0] hb_cnt;
@@ -257,23 +289,20 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     assign uo_out[0] = 1'b1;
     assign uo_out[1] = 1'b1;
     assign uo_out[2] = uart2_tx;
-    assign uo_out[3] = sdmc_busy | bridge_busy;
-    assign uo_out[4] = sdmc_done;
-    assign uo_out[5] = frame_error_sticky;
-    assign uo_out[6] = sdmc_auth_ok;
+    assign uo_out[3] = front_busy | aead_busy;
+    assign uo_out[4] = aead_done;
+    assign uo_out[5] = error_sticky;
+    assign uo_out[6] = aead_auth_ok;
     assign uo_out[7] = hb_cnt[23];
 
-    assign uio_out = {sdmc_out_kind, host_mode};
+    // Debug: high nibble = output token kind, low nibble = frontend phase.
+    assign uio_out = {out_kind, front_phase};
     assign uio_oe  = 8'h00;
 
     wire _unused = &{
         uio_in,
         rx0_active, rx1_active, rx2_active,
-        fifo0_full, fifo1_full, fifo2_full,
-        fifo0_count, fifo1_count, fifo2_count,
-        chain_enable, chain_debug, parser_start_unused,
-        program_id, in_count, out_count,
-        sdmc_out_last, tx_fifo_count,
+        aead_done,
         1'b0
     };
 

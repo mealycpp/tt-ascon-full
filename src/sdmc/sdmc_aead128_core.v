@@ -119,15 +119,16 @@ module sdmc_aead128_core (
     function [63:0] mask_n;
         input [3:0] n;
         begin
-            case (n[2:0])
-                3'd0: mask_n = 64'h0000_0000_0000_0000;
-                3'd1: mask_n = 64'h0000_0000_0000_00ff;
-                3'd2: mask_n = 64'h0000_0000_0000_ffff;
-                3'd3: mask_n = 64'h0000_0000_00ff_ffff;
-                3'd4: mask_n = 64'h0000_0000_ffff_ffff;
-                3'd5: mask_n = 64'h0000_00ff_ffff_ffff;
-                3'd6: mask_n = 64'h0000_ffff_ffff_ffff;
-                3'd7: mask_n = 64'h00ff_ffff_ffff_ffff;
+            case (n)
+                4'd0: mask_n = 64'h0000_0000_0000_0000;
+                4'd1: mask_n = 64'h0000_0000_0000_00ff;
+                4'd2: mask_n = 64'h0000_0000_0000_ffff;
+                4'd3: mask_n = 64'h0000_0000_00ff_ffff;
+                4'd4: mask_n = 64'h0000_0000_ffff_ffff;
+                4'd5: mask_n = 64'h0000_00ff_ffff_ffff;
+                4'd6: mask_n = 64'h0000_ffff_ffff_ffff;
+                4'd7: mask_n = 64'h00ff_ffff_ffff_ffff;
+                4'd8: mask_n = 64'hffff_ffff_ffff_ffff;
                 default: mask_n = 64'h0000_0000_0000_0000;
             endcase
         end

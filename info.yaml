@@ -14,21 +14,12 @@ project:
   source_files:
     - "ascon_round.v"
     - "ascon_permutation.v"
-    - "byte_fifo.v"
     - "uart_rx.v"
     - "uart_tx.v"
-    - "protocol_parser.v"
-    - "sdmc/sdmc_fifo.v"
-    - "sdmc/sdmc_token_fifo.v"
-    - "sdmc/sdmc_stream_ingress.v"
-    - "sdmc/sdmc_stream_egress.v"
-    - "sdmc/sdmc_stream_shell.v"
-    - "sdmc/sdmc_config_regs.v"
     - "sdmc/sdmc_ascon_perm_unit64.v"
+    - "sdmc/sdmc_aead_uart_frontend.v"
     - "sdmc/sdmc_aead128_core.v"
     - "sdmc/sdmc_crypto_helpers.v"
-    - "sdmc/sdmc_crypto_top.v"
-    - "sdmc/sdmc_uart_token_bridge.v"
     - "project_sdmc_uart_top.v"
 
 pinout:
