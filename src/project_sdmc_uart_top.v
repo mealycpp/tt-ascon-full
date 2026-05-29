@@ -118,49 +118,39 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     );
 
     // Tiny output serializer: AEAD output tokens -> UART2 bytes.
-    // No SRAM/deep FIFO. Uses one active token plus five pending token registers.
-    // Capacity covers max tested AEAD burst up to 32-byte data:
-    // ceil(32/8) data tokens + 2 tag tokens = 6 total tokens.
+    // Uses one active serializer register plus a small circular token queue.
+    // This avoids the old pend0..pend4 shift-overwrite bug when AEAD output
+    // and UART serializer promotion happen near the same cycle.
+    localparam integer OUTQ_DEPTH = 8;
+    localparam [3:0] OUTQ_DEPTH_COUNT = 4'd8;
+
     reg [63:0] ser_data_q;
     reg [3:0]  ser_count_q;
     reg [3:0]  ser_idx_q;
     reg [3:0]  ser_kind_q;
     reg        ser_valid_q;
 
-    reg [63:0] pend0_data_q;
-    reg [3:0]  pend0_count_q;
-    reg [3:0]  pend0_kind_q;
-    reg        pend0_valid_q;
+    reg [63:0] outq_data_q  [0:OUTQ_DEPTH-1];
+    reg [3:0]  outq_countb_q[0:OUTQ_DEPTH-1];
+    reg [3:0]  outq_kind_q  [0:OUTQ_DEPTH-1];
+    reg [2:0]  outq_wr_ptr_q;
+    reg [2:0]  outq_rd_ptr_q;
+    reg [3:0]  outq_count_q;
 
-    reg [63:0] pend1_data_q;
-    reg [3:0]  pend1_count_q;
-    reg [3:0]  pend1_kind_q;
-    reg        pend1_valid_q;
-
-    reg [63:0] pend2_data_q;
-    reg [3:0]  pend2_count_q;
-    reg [3:0]  pend2_kind_q;
-    reg        pend2_valid_q;
-
-    reg [63:0] pend3_data_q;
-    reg [3:0]  pend3_count_q;
-    reg [3:0]  pend3_kind_q;
-    reg        pend3_valid_q;
-
-    reg [63:0] pend4_data_q;
-    reg [3:0]  pend4_count_q;
-    reg [3:0]  pend4_kind_q;
-    reg        pend4_valid_q;
+    wire outq_full  = (outq_count_q == OUTQ_DEPTH_COUNT);
+    wire outq_empty = (outq_count_q == 4'd0);
 
     wire [3:0] out_kind = ser_kind_q;
 
-    assign aead_out_full = ser_valid_q &&
-                           pend0_valid_q && pend1_valid_q && pend2_valid_q &&
-                           pend3_valid_q && pend4_valid_q;
-
     wire tx_ready;
     wire tx_send = ser_valid_q && tx_ready;
-    wire ser_last_byte = tx_send && ((ser_idx_q + 4'd1) >= ser_count_q);
+
+    // Conservative one-cycle backpressure while the active token completes.
+    // This prevents accepting a new AEAD token while the active register is
+    // being replaced by a queued token.
+    wire ser_last_byte = tx_send && (ser_idx_q + 4'd1 >= ser_count_q);
+
+    assign aead_out_full = ser_last_byte || (ser_valid_q && outq_full);
 
     reg [7:0] tx_byte;
 
@@ -178,25 +168,43 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         endcase
     end
 
+    integer outq_i;
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            ser_data_q <= 64'd0; ser_count_q <= 4'd0; ser_idx_q <= 4'd0; ser_kind_q <= 4'd0; ser_valid_q <= 1'b0;
+            ser_data_q      <= 64'd0;
+            ser_count_q     <= 4'd0;
+            ser_idx_q       <= 4'd0;
+            ser_kind_q      <= 4'd0;
+            ser_valid_q     <= 1'b0;
 
-            pend0_data_q <= 64'd0; pend0_count_q <= 4'd0; pend0_kind_q <= 4'd0; pend0_valid_q <= 1'b0;
-            pend1_data_q <= 64'd0; pend1_count_q <= 4'd0; pend1_kind_q <= 4'd0; pend1_valid_q <= 1'b0;
-            pend2_data_q <= 64'd0; pend2_count_q <= 4'd0; pend2_kind_q <= 4'd0; pend2_valid_q <= 1'b0;
-            pend3_data_q <= 64'd0; pend3_count_q <= 4'd0; pend3_kind_q <= 4'd0; pend3_valid_q <= 1'b0;
-            pend4_data_q <= 64'd0; pend4_count_q <= 4'd0; pend4_kind_q <= 4'd0; pend4_valid_q <= 1'b0;
+            outq_wr_ptr_q   <= 3'd0;
+            outq_rd_ptr_q   <= 3'd0;
+            outq_count_q    <= 4'd0;
+
+            for (outq_i = 0; outq_i < OUTQ_DEPTH; outq_i = outq_i + 1) begin
+                outq_data_q[outq_i]   <= 64'd0;
+                outq_countb_q[outq_i] <= 4'd0;
+                outq_kind_q[outq_i]   <= 4'd0;
+            end
         end else if (clear) begin
-            ser_data_q <= 64'd0; ser_count_q <= 4'd0; ser_idx_q <= 4'd0; ser_kind_q <= 4'd0; ser_valid_q <= 1'b0;
+            ser_data_q      <= 64'd0;
+            ser_count_q     <= 4'd0;
+            ser_idx_q       <= 4'd0;
+            ser_kind_q      <= 4'd0;
+            ser_valid_q     <= 1'b0;
 
-            pend0_valid_q <= 1'b0;
-            pend1_valid_q <= 1'b0;
-            pend2_valid_q <= 1'b0;
-            pend3_valid_q <= 1'b0;
-            pend4_valid_q <= 1'b0;
+            outq_wr_ptr_q   <= 3'd0;
+            outq_rd_ptr_q   <= 3'd0;
+            outq_count_q    <= 4'd0;
+
+            for (outq_i = 0; outq_i < OUTQ_DEPTH; outq_i = outq_i + 1) begin
+                outq_data_q[outq_i]   <= 64'd0;
+                outq_countb_q[outq_i] <= 4'd0;
+                outq_kind_q[outq_i]   <= 4'd0;
+            end
         end else begin
-            // Accept AEAD output token.
+            // Accept a new AEAD token into active if idle, otherwise enqueue.
             if (aead_out_push && !aead_out_full) begin
                 if (!ser_valid_q) begin
                     ser_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
@@ -204,51 +212,27 @@ module tt_um_mealycpp_ascon_sdmc_uart (
                     ser_idx_q   <= 4'd0;
                     ser_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
                     ser_valid_q <= 1'b1;
-                end else if (!pend0_valid_q) begin
-                    pend0_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
-                    pend0_count_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
-                    pend0_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
-                    pend0_valid_q <= 1'b1;
-                end else if (!pend1_valid_q) begin
-                    pend1_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
-                    pend1_count_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
-                    pend1_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
-                    pend1_valid_q <= 1'b1;
-                end else if (!pend2_valid_q) begin
-                    pend2_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
-                    pend2_count_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
-                    pend2_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
-                    pend2_valid_q <= 1'b1;
-                end else if (!pend3_valid_q) begin
-                    pend3_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
-                    pend3_count_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
-                    pend3_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
-                    pend3_valid_q <= 1'b1;
-                end else if (!pend4_valid_q) begin
-                    pend4_data_q  <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
-                    pend4_count_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
-                    pend4_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
-                    pend4_valid_q <= 1'b1;
+                end else begin
+                    outq_data_q[outq_wr_ptr_q]   <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
+                    outq_countb_q[outq_wr_ptr_q] <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
+                    outq_kind_q[outq_wr_ptr_q]   <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                    outq_wr_ptr_q                <= outq_wr_ptr_q + 3'd1;
+                    outq_count_q                 <= outq_count_q + 4'd1;
                 end
             end
 
-            // Serialize active token.
+            // Serialize active token. When active token completes, promote
+            // exactly one queued token if available.
             if (tx_send) begin
-                if (ser_last_byte) begin
-                    if (pend0_valid_q) begin
-                        // Promote pend0 into active.
-                        ser_data_q  <= pend0_data_q;
-                        ser_count_q <= pend0_count_q;
-                        ser_idx_q   <= 4'd0;
-                        ser_kind_q  <= pend0_kind_q;
-                        ser_valid_q <= 1'b1;
-
-                        // Shift pending queue down.
-                        pend0_data_q  <= pend1_data_q; pend0_count_q <= pend1_count_q; pend0_kind_q <= pend1_kind_q; pend0_valid_q <= pend1_valid_q;
-                        pend1_data_q  <= pend2_data_q; pend1_count_q <= pend2_count_q; pend1_kind_q <= pend2_kind_q; pend1_valid_q <= pend2_valid_q;
-                        pend2_data_q  <= pend3_data_q; pend2_count_q <= pend3_count_q; pend2_kind_q <= pend3_kind_q; pend2_valid_q <= pend3_valid_q;
-                        pend3_data_q  <= pend4_data_q; pend3_count_q <= pend4_count_q; pend3_kind_q <= pend4_kind_q; pend3_valid_q <= pend4_valid_q;
-                        pend4_valid_q <= 1'b0;
+                if (ser_idx_q + 4'd1 >= ser_count_q) begin
+                    if (!outq_empty) begin
+                        ser_data_q    <= outq_data_q[outq_rd_ptr_q];
+                        ser_count_q   <= outq_countb_q[outq_rd_ptr_q];
+                        ser_kind_q    <= outq_kind_q[outq_rd_ptr_q];
+                        ser_idx_q     <= 4'd0;
+                        ser_valid_q   <= 1'b1;
+                        outq_rd_ptr_q <= outq_rd_ptr_q + 3'd1;
+                        outq_count_q  <= outq_count_q - 4'd1;
                     end else begin
                         ser_valid_q <= 1'b0;
                         ser_idx_q   <= 4'd0;
