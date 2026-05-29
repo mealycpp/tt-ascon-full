@@ -5,6 +5,8 @@ set -o pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+./tools/setup_ascon_c_ref.sh
+
 GREEN="\033[32m"
 RED="\033[31m"
 YELLOW="\033[33m"
