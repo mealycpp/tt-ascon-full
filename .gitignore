@@ -19,3 +19,17 @@ results.xml
 *.fst
 *.vcd
 __pycache__/
+
+# Generated simulation / CI artifacts
+ci_artifacts/
+external/
+reports/
+test/sdmc_top_uart_c_ref_crazy/
+test/sdmc_top_uart_roundtrip_long/
+test/sdmc_thin_frontend_aead_matrix/
+test/sdmc_top_uart_aead_matrix/
+*.vcd
+*.fst
+
+# Local compiled helper binaries
+tools/ascon_aead128_ref_cli
