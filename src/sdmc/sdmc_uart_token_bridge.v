@@ -1,7 +1,7 @@
 `default_nettype none
 
 `include "sdmc_modes.vh"
-`include "sdmc_stream_defs.vh"
+`include "src/sdmc/sdmc_stream_defs.vh"
 
 module sdmc_uart_token_bridge (
     input  wire        clk,

@@ -1,6 +1,6 @@
 `default_nettype none
 
-`include "sdmc_stream_defs.vh"
+`include "src/sdmc/sdmc_stream_defs.vh"
 
 module sdmc_token_fifo #(
     parameter DEPTH = 4,

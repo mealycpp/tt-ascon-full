@@ -1,7 +1,7 @@
 `default_nettype none
 
-`include "sdmc_stream_defs.vh"
-`include "sdmc_crypto_defs.vh"
+`include "src/sdmc/sdmc_stream_defs.vh"
+`include "src/sdmc/sdmc_crypto_defs.vh"
 
 module sdmc_hash256_core (
     input  wire                     clk,

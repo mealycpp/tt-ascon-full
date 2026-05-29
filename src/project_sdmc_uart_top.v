@@ -1,6 +1,6 @@
 `default_nettype none
 
-`include "sdmc_stream_defs.vh"
+`include "src/sdmc/sdmc_stream_defs.vh"
 
 module tt_um_mealycpp_ascon_sdmc_uart (
     input  wire [7:0] ui_in,
