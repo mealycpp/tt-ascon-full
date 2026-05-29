@@ -1,45 +1,27 @@
-# Makefile
-# See https://docs.cocotb.org/en/stable/quickstart.html for more info
+# SPDX-FileCopyrightText: © 2024 Tiny Tapeout
+# SPDX-License-Identifier: Apache-2.0
 
-# defaults
-SIM ?= icarus
-FST ?= -fst # Use more efficient FST format
 TOPLEVEL_LANG ?= verilog
-SRC_DIR = $(PWD)/../src
-PROJECT_SOURCES = project.v ascon_permutation.v ascon_round.v ascon_sponge_core.v hash_patch_controller.v xof_patch_controller.v cxof_patch_controller.v aead_patch_controller.v hash_controller.v xof_controller.v cxof_controller.v aead_controller.v mode_controller.v byte_fifo.v byte_to_word_packer.v word_to_byte_unpacker.v uart_rx.v uart_tx.v baud_gen.v uart_bridge.v protocol_parser.v lane_router.v
+SIM ?= icarus
 
-ifneq ($(GATES),yes)
+PWD := $(shell pwd)
 
-# RTL simulation:
-SIM_BUILD				= sim_build/rtl
-VERILOG_SOURCES += $(addprefix $(SRC_DIR)/,$(PROJECT_SOURCES))
-
-else
-
-# Gate level simulation:
-SIM_BUILD				= sim_build/gl
-COMPILE_ARGS    += -DGL_TEST
-COMPILE_ARGS    += -DFUNCTIONAL
-COMPILE_ARGS    += -DUSE_POWER_PINS
-COMPILE_ARGS    += -DSIM
-COMPILE_ARGS    += -DUNIT_DELAY=\#1
-VERILOG_SOURCES += $(PDK_ROOT)/gf180mcuD/libs.ref/gf180mcu_fd_sc_mcu7t5v0/verilog/primitives.v
-VERILOG_SOURCES += $(PDK_ROOT)/gf180mcuD/libs.ref/gf180mcu_fd_sc_mcu7t5v0/verilog/gf180mcu_fd_sc_mcu7t5v0.v
-
-# this gets copied in by the GDS action workflow
-VERILOG_SOURCES += $(PWD)/gate_level_netlist.v
-
-endif
-
-# Allow sharing configuration between design and testbench via `include`:
-COMPILE_ARGS 		+= -I$(SRC_DIR)
-
-# Include the testbench sources:
-VERILOG_SOURCES += $(PWD)/tb.v
 TOPLEVEL = tb
+MODULE = test
 
-# List test modules to run, separated by commas and without the .py suffix:
-COCOTB_TEST_MODULES = test
+# Needed because SDMC files include "src/sdmc/..."
+COMPILE_ARGS += -I$(PWD)/.. -I$(PWD)/../src -I$(PWD)/../src/sdmc
 
-# include cocotb's make rules to take care of the simulator setup
+VERILOG_SOURCES = \
+  $(PWD)/../src/ascon_round.v \
+  $(PWD)/../src/ascon_permutation.v \
+  $(PWD)/../src/uart_rx.v \
+  $(PWD)/../src/uart_tx.v \
+  $(PWD)/../src/sdmc/sdmc_aead_uart_frontend.v \
+  $(PWD)/../src/sdmc/sdmc_aead128_core.v \
+  $(PWD)/../src/sdmc/sdmc_ascon_perm_unit64.v \
+  $(PWD)/../src/sdmc/sdmc_crypto_helpers.v \
+  $(PWD)/../src/project_sdmc_uart_top.v \
+  $(PWD)/tb.v
+
 include $(shell cocotb-config --makefiles)/Makefile.sim
