@@ -13,22 +13,22 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     input  wire       rst_n
 );
 
-    wire uart0_rx = ui_in[0];
-    wire uart1_rx = ui_in[1];
-    wire uart2_rx = ui_in[2];
+    wire uart0_rx = ui_in[0];  // single RX stream: command + key + nonce + AD + msg/tag
     wire clear = !ena;
 
     wire [15:0] baud_div = 16'd217;
 
     wire [7:0] rx0_byte;
-    wire [7:0] rx1_byte;
-    wire [7:0] rx2_byte;
     wire rx0_valid;
-    wire rx1_valid;
-    wire rx2_valid;
     wire rx0_active;
-    wire rx1_active;
-    wire rx2_active;
+
+    // Single-UART rescue: feed the same RX byte stream into all frontend phases.
+    wire [7:0] rx1_byte  = rx0_byte;
+    wire [7:0] rx2_byte  = rx0_byte;
+    wire       rx1_valid = rx0_valid;
+    wire       rx2_valid = rx0_valid;
+    wire       rx1_active = 1'b0;
+    wire       rx2_active = 1'b0;
 
     uart_rx u_rx0 (
         .clk(clk), .rst_n(rst_n), .baud_div(baud_div),
@@ -36,17 +36,7 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         .byte_valid(rx0_valid), .rx_active(rx0_active)
     );
 
-    uart_rx u_rx1 (
-        .clk(clk), .rst_n(rst_n), .baud_div(baud_div),
-        .rx(uart1_rx), .byte_out(rx1_byte),
-        .byte_valid(rx1_valid), .rx_active(rx1_active)
-    );
 
-    uart_rx u_rx2 (
-        .clk(clk), .rst_n(rst_n), .baud_div(baud_div),
-        .rx(uart2_rx), .byte_out(rx2_byte),
-        .byte_valid(rx2_valid), .rx_active(rx2_active)
-    );
 
     wire                     aead_start;
     wire                     aead_is_decrypt;
@@ -270,9 +260,9 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         else hb_cnt <= hb_cnt + 24'd1;
     end
 
-    assign uo_out[0] = 1'b1;
+    assign uo_out[0] = uart2_tx;  // single TX stream mirror
     assign uo_out[1] = 1'b1;
-    assign uo_out[2] = uart2_tx;
+    assign uo_out[2] = uart2_tx;  // kept for existing tests/compatibility
     assign uo_out[3] = front_busy | aead_busy;
     assign uo_out[4] = aead_done;
     assign uo_out[5] = error_sticky;

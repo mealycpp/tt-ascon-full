@@ -142,9 +142,9 @@ module tb_{name};
     task automatic send_key_nonce_ad;
         integer j;
         begin
-            for (j = 0; j < 16; j = j + 1) uart_send_byte(1, key[j]);
-            for (j = 0; j < 16; j = j + 1) uart_send_byte(1, nonce[j]);
-            for (j = 0; j < AD_LEN; j = j + 1) uart_send_byte(1, ad[j]);
+            for (j = 0; j < 16; j = j + 1) uart_send_byte(0, key[j]);
+            for (j = 0; j < 16; j = j + 1) uart_send_byte(0, nonce[j]);
+            for (j = 0; j < AD_LEN; j = j + 1) uart_send_byte(0, ad[j]);
         end
     endtask
 
@@ -182,7 +182,7 @@ module tb_{name};
                 send_cmd(8'd5, AD_LEN[15:0], PT_LEN[15:0]);
                 send_key_nonce_ad();
                 for (si = 0; si < PT_LEN; si = si + 1) begin
-                    uart_send_byte(2, pt[si]);
+                    uart_send_byte(0, pt[si]);
                 end
                 $display("DBG stage=enc_input_done t=%0t", $time);
             end
@@ -221,7 +221,7 @@ module tb_{name};
                 send_cmd(8'd6, AD_LEN[15:0], PT_LEN[15:0]);
                 send_key_nonce_ad();
                 for (si = 0; si < ENC_OUT_LEN; si = si + 1) begin
-                    uart_send_byte(2, enc[si]);
+                    uart_send_byte(0, enc[si]);
                 end
                 $display("DBG stage=dec_input_done t=%0t", $time);
             end

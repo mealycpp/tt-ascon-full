@@ -16,13 +16,13 @@ def normalize_send_key_nonce_ad(s, name):
         integer j;
         begin
             for (j = 0; j < 16; j = j + 1) begin
-                uart_send_byte(1, j[7:0]);
+                uart_send_byte(0, j[7:0]);
             end
             for (j = 0; j < 16; j = j + 1) begin
-                uart_send_byte(1, 8'h10 + j[7:0]);
+                uart_send_byte(0, 8'h10 + j[7:0]);
             end
             for (j = 0; j < AD_LEN; j = j + 1) begin
-                uart_send_byte(1, 8'h40 + j[7:0]);
+                uart_send_byte(0, 8'h40 + j[7:0]);
             end
         end
     endtask

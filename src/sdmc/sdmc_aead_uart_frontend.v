@@ -225,7 +225,7 @@ module sdmc_aead_uart_frontend (
             end
 
             // UART0 command parser: A5 mode flags ad_lo ad_hi data_lo data_hi out_lo out_hi cc_lo cc_hi cs_lo cs_hi 5A
-            if (rx0_valid) begin
+            if (!busy && rx0_valid) begin
                 case (cmd_state)
                     C_IDLE: begin
                         if (rx0_byte == SOF_BYTE) cmd_state <= C_B1;
