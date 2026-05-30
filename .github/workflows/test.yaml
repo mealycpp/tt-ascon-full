@@ -31,6 +31,14 @@ jobs:
           # make will return success even if the test fails, so check for failure in the results.xml
           ! grep failure results.xml
 
+      - name: Ensure test results XML exists
+        if: always()
+        run: |
+          mkdir -p test
+          if [ ! -f test/results.xml ]; then
+            printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' '<testsuites tests="0" failures="0" errors="0" skipped="0"></testsuites>' > test/results.xml
+          fi
+
       - name: Test Summary
         uses: test-summary/action@v2.4
         with:
