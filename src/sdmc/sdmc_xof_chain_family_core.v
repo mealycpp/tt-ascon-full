@@ -35,8 +35,8 @@ module sdmc_xof_chain_family_core (
     localparam S_DONE       = 3'd4;
     localparam S_ERR        = 3'd5;
 
-    localparam CS_CACHE_DEPTH = 16;
-    localparam CS_CACHE_AW    = 4;
+    localparam CS_CACHE_DEPTH = 4;
+    localparam CS_CACHE_AW    = 2;
 
     reg [2:0] state;
 

@@ -25,6 +25,9 @@ module sdmc_aead_uart_frontend (
     output reg  [15:0]              aead_ad_len,
     output reg  [15:0]              aead_data_len,
     output reg  [3:0]               host_mode,
+    output reg  [15:0]              xof_out_len,
+    output reg  [15:0]              xof_chain_count,
+    output reg  [15:0]              xof_cs_len,
 
     // AEAD/HASH input token interface
     output reg  [`SDMC_TOKEN_W-1:0] aead_in_token,
@@ -68,6 +71,9 @@ module sdmc_aead_uart_frontend (
     reg [3:0] mode_q;
     reg [15:0] ad_len_q;
     reg [15:0] data_len_q;
+    reg [15:0] out_len_q;
+    reg [15:0] chain_count_q;
+    reg [15:0] cs_len_q;
 
     reg [3:0] phase;
     reg [15:0] phase_left;
@@ -115,7 +121,7 @@ module sdmc_aead_uart_frontend (
             case (ph)
                 PH_KEY:   phase_kind = `SDMC_TOK_KEY;
                 PH_NONCE: phase_kind = `SDMC_TOK_NONCE;
-                PH_AD:    phase_kind = `SDMC_TOK_AD;
+                PH_AD:    phase_kind = ((mode_q == 4'd3) || (mode_q == 4'd7)) ? `SDMC_TOK_CS : `SDMC_TOK_AD;
                 PH_MSG:   phase_kind = `SDMC_TOK_MSG;
                 PH_TAG:   phase_kind = `SDMC_TOK_TAG;
                 default:  phase_kind = `SDMC_TOK_MSG;
@@ -147,9 +153,19 @@ module sdmc_aead_uart_frontend (
                 PH_NONCE: next_phase = (ad_len_q != 16'd0) ? PH_AD :
                                        (data_len_q != 16'd0) ? PH_MSG :
                                        (aead_is_decrypt ? PH_TAG : PH_DONE);
-                PH_AD:    next_phase = (data_len_q != 16'd0) ? PH_MSG :
-                                       (aead_is_decrypt ? PH_TAG : PH_DONE);
-                PH_MSG:   next_phase = aead_is_decrypt ? PH_TAG : PH_DONE;
+                PH_AD: begin
+                    if ((mode_q == 4'd3) || (mode_q == 4'd7))
+                        next_phase = (data_len_q != 16'd0) ? PH_MSG : PH_DONE;
+                    else
+                        next_phase = (data_len_q != 16'd0) ? PH_MSG :
+                                     (aead_is_decrypt ? PH_TAG : PH_DONE);
+                end
+                PH_MSG: begin
+                    if ((mode_q == 4'd5) || (mode_q == 4'd6))
+                        next_phase = aead_is_decrypt ? PH_TAG : PH_DONE;
+                    else
+                        next_phase = PH_DONE;
+                end
                 PH_TAG:   next_phase = PH_DONE;
                 default:  next_phase = PH_DONE;
             endcase
@@ -162,7 +178,7 @@ module sdmc_aead_uart_frontend (
             case (ph)
                 PH_KEY:   phase_len = 16'd16;
                 PH_NONCE: phase_len = 16'd16;
-                PH_AD:    phase_len = ad_len_q;
+                PH_AD:    phase_len = ((mode_q == 4'd3) || (mode_q == 4'd7)) ? cs_len_q : ad_len_q;
                 PH_MSG:   phase_len = data_len_q;
                 PH_TAG:   phase_len = 16'd16;
                 default:  phase_len = 16'd0;
@@ -183,9 +199,12 @@ module sdmc_aead_uart_frontend (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             cmd_state <= C_IDLE;
-            mode_q <= 3'd0;
+            mode_q <= 4'd0;
             ad_len_q <= 16'd0;
             data_len_q <= 16'd0;
+            out_len_q <= 16'd0;
+            chain_count_q <= 16'd1;
+            cs_len_q <= 16'd0;
 
             phase <= PH_IDLE;
             phase_dbg <= PH_IDLE;
@@ -196,6 +215,9 @@ module sdmc_aead_uart_frontend (
             host_mode <= 4'd0;
             aead_ad_len <= 16'd0;
             aead_data_len <= 16'd0;
+            xof_out_len <= 16'd32;
+            xof_chain_count <= 16'd1;
+            xof_cs_len <= 16'd0;
 
             aead_in_token <= {`SDMC_TOKEN_W{1'b0}};
             token_full_q <= 1'b0;
@@ -210,6 +232,9 @@ module sdmc_aead_uart_frontend (
             phase_left <= 16'd0;
             aead_start <= 1'b0;
             host_mode <= 4'd0;
+            xof_out_len <= 16'd32;
+            xof_chain_count <= 16'd1;
+            xof_cs_len <= 16'd0;
             token_full_q <= 1'b0;
             busy <= 1'b0;
             error <= 1'b0;
@@ -258,26 +283,63 @@ module sdmc_aead_uart_frontend (
                         data_len_q[15:8] <= rx0_byte;
                         cmd_state <= C_B7;
                     end
-                    C_B7:  cmd_state <= C_B8;
-                    C_B8:  cmd_state <= C_B9;
-                    C_B9:  cmd_state <= C_B10;
-                    C_B10: cmd_state <= C_B11;
-                    C_B11: cmd_state <= C_B12;
-                    C_B12: cmd_state <= C_B13;
+                    C_B7: begin
+                        out_len_q[7:0] <= rx0_byte;
+                        cmd_state <= C_B8;
+                    end
+                    C_B8: begin
+                        out_len_q[15:8] <= rx0_byte;
+                        cmd_state <= C_B9;
+                    end
+                    C_B9: begin
+                        chain_count_q[7:0] <= rx0_byte;
+                        cmd_state <= C_B10;
+                    end
+                    C_B10: begin
+                        chain_count_q[15:8] <= rx0_byte;
+                        cmd_state <= C_B11;
+                    end
+                    C_B11: begin
+                        cs_len_q[7:0] <= rx0_byte;
+                        cmd_state <= C_B12;
+                    end
+                    C_B12: begin
+                        cs_len_q[15:8] <= rx0_byte;
+                        cmd_state <= C_B13;
+                    end
                     C_B13: begin
                         if (rx0_byte == EOF_BYTE &&
-                            (mode_q == 4'd1 || mode_q == 4'd5 || mode_q == 4'd6)) begin
+                            (mode_q == 4'd1 || mode_q == 4'd2 || mode_q == 4'd3 ||
+                             mode_q == 4'd4 || mode_q == 4'd5 || mode_q == 4'd6 ||
+                             mode_q == 4'd7)) begin
                             aead_ad_len <= ad_len_q;
                             aead_data_len <= data_len_q;
+                            xof_out_len <= (out_len_q == 16'd0) ? 16'd32 : out_len_q;
+                            xof_chain_count <= (chain_count_q == 16'd0) ? 16'd1 : chain_count_q;
+                            xof_cs_len <= cs_len_q;
                             aead_start <= 1'b1;
                             busy <= 1'b1;
                             error <= 1'b0;
                             clear_pack();
 
-                            if (mode_q == 4'd1) begin
+                            if (mode_q == 4'd1 || mode_q == 4'd2 || mode_q == 4'd4) begin
                                 phase <= (data_len_q != 16'd0) ? PH_MSG : PH_DONE;
                                 phase_dbg <= (data_len_q != 16'd0) ? PH_MSG : PH_DONE;
                                 phase_left <= data_len_q;
+                            end else if (mode_q == 4'd3 || mode_q == 4'd7) begin
+                                if (cs_len_q != 16'd0) begin
+                                    phase <= PH_AD;
+                                    phase_dbg <= PH_AD;
+                                    phase_left <= cs_len_q;
+                                end else if (data_len_q != 16'd0) begin
+                                    phase <= PH_MSG;
+                                    phase_dbg <= PH_MSG;
+                                    phase_left <= data_len_q;
+                                end else begin
+                                    phase <= PH_DONE;
+                                    phase_dbg <= PH_DONE;
+                                    phase_left <= 16'd0;
+                                end
                             end else begin
                                 phase <= PH_KEY;
                                 phase_dbg <= PH_KEY;

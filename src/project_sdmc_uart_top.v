@@ -42,11 +42,15 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire                     aead_is_decrypt;
     wire [15:0]              aead_ad_len;
     wire [15:0]              aead_data_len;
+    wire [15:0]              xof_out_len;
+    wire [15:0]              xof_chain_count;
+    wire [15:0]              xof_cs_len;
     wire [`SDMC_TOKEN_W-1:0] aead_in_token;
     wire                     aead_in_empty;
     wire                     aead_in_pop;
     wire                     aead_core_in_pop;
     wire                     hash_in_pop;
+    wire                     xof_in_pop;
     wire                     front_busy;
     wire                     front_error;
     wire [3:0]               front_phase;
@@ -69,6 +73,9 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         .aead_ad_len     (aead_ad_len),
         .aead_data_len   (aead_data_len),
         .host_mode       (front_mode),
+        .xof_out_len     (xof_out_len),
+        .xof_chain_count (xof_chain_count),
+        .xof_cs_len      (xof_cs_len),
 
         .aead_in_token   (aead_in_token),
         .aead_in_empty   (aead_in_empty),
@@ -93,15 +100,27 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire                     hash_done;
     wire                     hash_error;
 
+    wire [`SDMC_TOKEN_W-1:0] xof_out_token;
+    wire                     xof_out_push;
+    wire                     xof_busy;
+    wire                     xof_done;
+    wire                     xof_error;
+
     wire                     mode_hash = (front_mode == 4'd1);
+    wire                     mode_xof  = (front_mode == 4'd2) || (front_mode == 4'd3) ||
+                                         (front_mode == 4'd4) || (front_mode == 4'd7);
     wire                     mode_aead = (front_mode == 4'd5) || (front_mode == 4'd6);
     wire                     core_start = aead_start;
 
-    assign aead_in_pop = mode_hash ? hash_in_pop : aead_core_in_pop;
+    assign aead_in_pop = mode_hash ? hash_in_pop :
+                         mode_xof  ? xof_in_pop  :
+                                     aead_core_in_pop;
 
     wire [`SDMC_TOKEN_W-1:0] aead_out_token =
-        hash_out_push ? hash_out_token : aead_core_out_token;
-    wire aead_out_push = hash_out_push | aead_core_out_push;
+        hash_out_push ? hash_out_token :
+        xof_out_push  ? xof_out_token  :
+                        aead_core_out_token;
+    wire aead_out_push = hash_out_push | xof_out_push | aead_core_out_push;
 
     sdmc_aead128_core u_aead (
         .clk        (clk),
@@ -146,6 +165,32 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         .busy      (hash_busy),
         .done      (hash_done),
         .error     (hash_error)
+    );
+
+    sdmc_xof_chain_family_core u_xof_chain (
+        .clk         (clk),
+        .rst_n       (rst_n),
+        .clear       (clear),
+
+        .start       (core_start & mode_xof),
+        .use_hash    (1'b0),
+        .use_cxof    ((front_mode == 4'd3) || (front_mode == 4'd7)),
+        .chain_count (xof_chain_count),
+        .msg_len     (aead_data_len),
+        .cs_len      (xof_cs_len),
+        .out_len     (xof_out_len),
+
+        .in_token    (aead_in_token),
+        .in_empty    (aead_in_empty),
+        .in_pop      (xof_in_pop),
+
+        .out_token   (xof_out_token),
+        .out_push    (xof_out_push),
+        .out_full    (aead_out_full),
+
+        .busy        (xof_busy),
+        .done        (xof_done),
+        .error       (xof_error)
     );
 
     // Tiny output serializer: AEAD output tokens -> UART2 bytes.
@@ -291,7 +336,7 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) error_sticky <= 1'b0;
         else if (clear) error_sticky <= 1'b0;
-        else if (front_error || aead_error || hash_error) error_sticky <= 1'b1;
+        else if (front_error || aead_error || hash_error || xof_error) error_sticky <= 1'b1;
         else if (aead_start) error_sticky <= 1'b0;
     end
 
@@ -304,8 +349,8 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     assign uo_out[0] = uart2_tx;  // single TX stream mirror
     assign uo_out[1] = 1'b1;
     assign uo_out[2] = uart2_tx;  // kept for existing tests/compatibility
-    assign uo_out[3] = front_busy | aead_busy | hash_busy;
-    assign uo_out[4] = aead_done | hash_done;
+    assign uo_out[3] = front_busy | aead_busy | hash_busy | xof_busy;
+    assign uo_out[4] = aead_done | hash_done | xof_done;
     assign uo_out[5] = error_sticky;
     assign uo_out[6] = aead_auth_ok;
     assign uo_out[7] = hb_cnt[23];
