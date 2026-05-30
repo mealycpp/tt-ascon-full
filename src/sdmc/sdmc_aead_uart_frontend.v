@@ -24,8 +24,9 @@ module sdmc_aead_uart_frontend (
     output reg                      aead_is_decrypt,
     output reg  [15:0]              aead_ad_len,
     output reg  [15:0]              aead_data_len,
+    output reg  [3:0]               host_mode,
 
-    // AEAD input token interface
+    // AEAD/HASH input token interface
     output reg  [`SDMC_TOKEN_W-1:0] aead_in_token,
     output wire                     aead_in_empty,
     input  wire                     aead_in_pop,
@@ -64,7 +65,7 @@ module sdmc_aead_uart_frontend (
     localparam C_B13  = 4'd13;
 
     reg [3:0] cmd_state;
-    reg [2:0] mode_q;
+    reg [3:0] mode_q;
     reg [15:0] ad_len_q;
     reg [15:0] data_len_q;
 
@@ -192,6 +193,7 @@ module sdmc_aead_uart_frontend (
 
             aead_start <= 1'b0;
             aead_is_decrypt <= 1'b0;
+            host_mode <= 4'd0;
             aead_ad_len <= 16'd0;
             aead_data_len <= 16'd0;
 
@@ -207,6 +209,7 @@ module sdmc_aead_uart_frontend (
             phase_dbg <= PH_IDLE;
             phase_left <= 16'd0;
             aead_start <= 1'b0;
+            host_mode <= 4'd0;
             token_full_q <= 1'b0;
             busy <= 1'b0;
             error <= 1'b0;
@@ -231,11 +234,12 @@ module sdmc_aead_uart_frontend (
                         if (rx0_byte == SOF_BYTE) cmd_state <= C_B1;
                     end
                     C_B1: begin
-                        mode_q <= rx0_byte[2:0];
+                        mode_q <= rx0_byte[3:0];
+                        host_mode <= rx0_byte[3:0];
                         cmd_state <= C_B2;
                     end
                     C_B2: begin
-                        aead_is_decrypt <= rx0_byte[2] || (mode_q == 3'd6);
+                        aead_is_decrypt <= rx0_byte[2] || (mode_q == 4'd6);
                         cmd_state <= C_B3;
                     end
                     C_B3: begin
@@ -261,16 +265,24 @@ module sdmc_aead_uart_frontend (
                     C_B11: cmd_state <= C_B12;
                     C_B12: cmd_state <= C_B13;
                     C_B13: begin
-                        if (rx0_byte == EOF_BYTE && (mode_q == 3'd5 || mode_q == 3'd6)) begin
+                        if (rx0_byte == EOF_BYTE &&
+                            (mode_q == 4'd1 || mode_q == 4'd5 || mode_q == 4'd6)) begin
                             aead_ad_len <= ad_len_q;
                             aead_data_len <= data_len_q;
                             aead_start <= 1'b1;
                             busy <= 1'b1;
                             error <= 1'b0;
-                            phase <= PH_KEY;
-                            phase_dbg <= PH_KEY;
-                            phase_left <= 16'd16;
                             clear_pack();
+
+                            if (mode_q == 4'd1) begin
+                                phase <= (data_len_q != 16'd0) ? PH_MSG : PH_DONE;
+                                phase_dbg <= (data_len_q != 16'd0) ? PH_MSG : PH_DONE;
+                                phase_left <= data_len_q;
+                            end else begin
+                                phase <= PH_KEY;
+                                phase_dbg <= PH_KEY;
+                                phase_left <= 16'd16;
+                            end
                         end else begin
                             error <= 1'b1;
                             phase <= PH_ERR;

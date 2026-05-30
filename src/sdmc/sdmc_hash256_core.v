@@ -217,7 +217,7 @@ module sdmc_hash256_core (
                     if (perm_ready) begin
                         perm_wr_en   <= 1'b1;
                         perm_wr_lane <= 3'd0;
-                        perm_wr_data <= `SDMC_HASH256_IV;
+                        perm_wr_data <= `SDMC_HASH256_IV0;
                         state        <= S_LOAD_X1;
                     end
                 end
@@ -226,7 +226,7 @@ module sdmc_hash256_core (
                     if (perm_ready) begin
                         perm_wr_en   <= 1'b1;
                         perm_wr_lane <= 3'd1;
-                        perm_wr_data <= 64'd0;
+                        perm_wr_data <= `SDMC_HASH256_IV1;
                         state        <= S_LOAD_X2;
                     end
                 end
@@ -235,7 +235,7 @@ module sdmc_hash256_core (
                     if (perm_ready) begin
                         perm_wr_en   <= 1'b1;
                         perm_wr_lane <= 3'd2;
-                        perm_wr_data <= 64'd0;
+                        perm_wr_data <= `SDMC_HASH256_IV2;
                         state        <= S_LOAD_X3;
                     end
                 end
@@ -244,7 +244,7 @@ module sdmc_hash256_core (
                     if (perm_ready) begin
                         perm_wr_en   <= 1'b1;
                         perm_wr_lane <= 3'd3;
-                        perm_wr_data <= 64'd0;
+                        perm_wr_data <= `SDMC_HASH256_IV3;
                         state        <= S_LOAD_X4;
                     end
                 end
@@ -253,8 +253,19 @@ module sdmc_hash256_core (
                     if (perm_ready) begin
                         perm_wr_en   <= 1'b1;
                         perm_wr_lane <= 3'd4;
-                        perm_wr_data <= 64'd0;
-                        state        <= S_INIT_START;
+                        perm_wr_data <= `SDMC_HASH256_IV4;
+
+                        // Official ASCON-C asconhash256 uses precomputed IV words
+                        // and absorbs directly.
+                        // Do not run an extra initialization P12.
+                        if (msg_len == 16'd0) begin
+                            msg_word_q  <= 64'd0;
+                            msg_bytes_q <= 4'd0;
+                            msg_last_q  <= 1'b1;
+                            state       <= S_ABS_RD;
+                        end else begin
+                            state <= S_MSG_WAIT;
+                        end
                     end
                 end
 
@@ -325,6 +336,11 @@ module sdmc_hash256_core (
                         perm_wr_en   <= 1'b1;
                         perm_wr_lane <= 3'd0;
                         perm_wr_data <= x0_q;
+
+                        // ASCON-C Hash256 applies P12 after every absorbed
+                        // block, including the final padded block. The only
+                        // permutation we skip is the old extra initialization
+                        // P12 because we load the official precomputed IV words.
                         state        <= S_ABS_START;
                     end
                 end
