@@ -233,7 +233,7 @@ module sdmc_xof_family_core (
                     if (perm_ready) begin
                         perm_wr_en   <= 1'b1;
                         perm_wr_lane <= 3'd0;
-                        perm_wr_data <= use_cxof ? `SDMC_CXOF128_IV : `SDMC_XOF128_IV;
+                        perm_wr_data <= use_hash ? `SDMC_HASH256_IV : (use_cxof ? `SDMC_CXOF128_IV : `SDMC_XOF128_IV);
                         state        <= S_LOAD_X1;
                     end
                 end

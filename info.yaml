@@ -19,7 +19,6 @@ project:
     - "sdmc/sdmc_ascon_perm_unit64.v"
     - "sdmc/sdmc_aead_uart_frontend.v"
     - "sdmc/sdmc_aead128_core.v"
-    - "sdmc/sdmc_hash256_core.v"
     - "sdmc/sdmc_xof_family_core.v"
     - "sdmc/sdmc_xof_chain_family_core.v"
     - "sdmc/sdmc_crypto_helpers.v"

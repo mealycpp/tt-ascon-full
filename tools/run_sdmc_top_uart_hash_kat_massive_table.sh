@@ -46,8 +46,9 @@ while read -r name; do
         src/uart_tx.v \
         src/sdmc/sdmc_aead_uart_frontend.v \
         src/sdmc/sdmc_aead128_core.v \
-        src/sdmc/sdmc_hash256_core.v \
-        src/sdmc/sdmc_ascon_perm_unit64.v \
+        src/sdmc/sdmc_xof_family_core.v \
+        src/sdmc/sdmc_xof_chain_family_core.v \
+          src/sdmc/sdmc_ascon_perm_unit64.v \
         src/sdmc/sdmc_crypto_helpers.v \
         src/project_sdmc_uart_top.v \
         "$tb" >"$clog" 2>&1; then
