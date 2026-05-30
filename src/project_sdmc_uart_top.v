@@ -93,6 +93,115 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire                     aead_error;
     wire                     aead_auth_ok;
 
+    // One physical ASCON permutation shared by AEAD and HASH/XOF/CXOF-chain routines.
+    wire                     aead_perm_wr_en;
+    wire [2:0]               aead_perm_wr_lane;
+    wire [63:0]              aead_perm_wr_data;
+    wire                     aead_perm_start;
+    wire [3:0]               aead_perm_rounds_q;
+    wire                     aead_perm_ready;
+    wire                     aead_perm_busy;
+    wire                     aead_perm_done;
+    wire [63:0]              aead_perm_x0;
+    wire [63:0]              aead_perm_x1;
+    wire [63:0]              aead_perm_x2;
+    wire [63:0]              aead_perm_x3;
+    wire [63:0]              aead_perm_x4;
+
+    wire                     xof_perm_wr_en;
+    wire [2:0]               xof_perm_wr_lane;
+    wire [63:0]              xof_perm_wr_data;
+    wire                     xof_perm_rd_en;
+    wire [2:0]               xof_perm_rd_lane;
+    wire [63:0]              xof_perm_rd_data;
+    wire                     xof_perm_rd_valid;
+    wire                     xof_perm_start;
+    wire [3:0]               xof_perm_rounds_q;
+    wire                     xof_perm_ready;
+    wire                     xof_perm_busy;
+    wire                     xof_perm_done;
+    wire [63:0]              xof_perm_x0;
+    wire [63:0]              xof_perm_x1;
+    wire [63:0]              xof_perm_x2;
+    wire [63:0]              xof_perm_x3;
+    wire [63:0]              xof_perm_x4;
+
+    wire                     shared_perm_wr_en;
+    wire [2:0]               shared_perm_wr_lane;
+    wire [63:0]              shared_perm_wr_data;
+    wire                     shared_perm_rd_en;
+    wire [2:0]               shared_perm_rd_lane;
+    wire [63:0]              shared_perm_rd_data;
+    wire                     shared_perm_rd_valid;
+    wire                     shared_perm_start;
+    wire [3:0]               shared_perm_rounds_q;
+    wire                     shared_perm_ready;
+    wire                     shared_perm_busy;
+    wire                     shared_perm_done;
+    wire [63:0]              shared_perm_x0;
+    wire [63:0]              shared_perm_x1;
+    wire [63:0]              shared_perm_x2;
+    wire [63:0]              shared_perm_x3;
+    wire [63:0]              shared_perm_x4;
+
+    wire                     shared_sel_xof = mode_xof;
+
+    assign shared_perm_wr_en    = shared_sel_xof ? xof_perm_wr_en    : aead_perm_wr_en;
+    assign shared_perm_wr_lane  = shared_sel_xof ? xof_perm_wr_lane  : aead_perm_wr_lane;
+    assign shared_perm_wr_data  = shared_sel_xof ? xof_perm_wr_data  : aead_perm_wr_data;
+    assign shared_perm_rd_en    = shared_sel_xof ? xof_perm_rd_en    : 1'b0;
+    assign shared_perm_rd_lane  = shared_sel_xof ? xof_perm_rd_lane  : 3'd0;
+    assign shared_perm_start    = shared_sel_xof ? xof_perm_start    : aead_perm_start;
+    assign shared_perm_rounds_q = shared_sel_xof ? xof_perm_rounds_q : aead_perm_rounds_q;
+
+    assign aead_perm_ready = (!shared_sel_xof) ? shared_perm_ready : 1'b0;
+    assign aead_perm_busy  = (!shared_sel_xof) ? shared_perm_busy  : 1'b0;
+    assign aead_perm_done  = (!shared_sel_xof) ? shared_perm_done  : 1'b0;
+    assign aead_perm_x0    = shared_perm_x0;
+    assign aead_perm_x1    = shared_perm_x1;
+    assign aead_perm_x2    = shared_perm_x2;
+    assign aead_perm_x3    = shared_perm_x3;
+    assign aead_perm_x4    = shared_perm_x4;
+
+    assign xof_perm_ready    = shared_sel_xof ? shared_perm_ready    : 1'b0;
+    assign xof_perm_busy     = shared_sel_xof ? shared_perm_busy     : 1'b0;
+    assign xof_perm_done     = shared_sel_xof ? shared_perm_done     : 1'b0;
+    assign xof_perm_rd_data  = shared_perm_rd_data;
+    assign xof_perm_rd_valid = shared_sel_xof ? shared_perm_rd_valid : 1'b0;
+    assign xof_perm_x0       = shared_perm_x0;
+    assign xof_perm_x1       = shared_perm_x1;
+    assign xof_perm_x2       = shared_perm_x2;
+    assign xof_perm_x3       = shared_perm_x3;
+    assign xof_perm_x4       = shared_perm_x4;
+
+    sdmc_ascon_perm_unit64 u_perm_shared (
+        .clk           (clk),
+        .rst_n         (rst_n),
+        .clear         (clear),
+
+        .host_wr_en    (shared_perm_wr_en),
+        .host_wr_lane  (shared_perm_wr_lane),
+        .host_wr_data  (shared_perm_wr_data),
+
+        .host_rd_en    (shared_perm_rd_en),
+        .host_rd_lane  (shared_perm_rd_lane),
+        .host_rd_data  (shared_perm_rd_data),
+        .host_rd_valid (shared_perm_rd_valid),
+
+        .start         (shared_perm_start),
+        .rounds        (shared_perm_rounds_q),
+
+        .host_ready    (shared_perm_ready),
+        .busy          (shared_perm_busy),
+        .done          (shared_perm_done),
+
+        .x0            (shared_perm_x0),
+        .x1            (shared_perm_x1),
+        .x2            (shared_perm_x2),
+        .x3            (shared_perm_x3),
+        .x4            (shared_perm_x4)
+    );
+
     wire [`SDMC_TOKEN_W-1:0] xof_out_token;
     wire                     xof_out_push;
     wire                     xof_busy;
@@ -133,7 +242,21 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         .busy       (aead_busy),
         .done       (aead_done),
         .error      (aead_error),
-        .auth_ok    (aead_auth_ok)
+        .auth_ok    (aead_auth_ok),
+
+        .perm_wr_en    (aead_perm_wr_en),
+        .perm_wr_lane  (aead_perm_wr_lane),
+        .perm_wr_data  (aead_perm_wr_data),
+        .perm_start    (aead_perm_start),
+        .perm_rounds_q (aead_perm_rounds_q),
+        .perm_ready    (aead_perm_ready),
+        .perm_busy     (aead_perm_busy),
+        .perm_done     (aead_perm_done),
+        .p0            (aead_perm_x0),
+        .p1            (aead_perm_x1),
+        .p2            (aead_perm_x2),
+        .p3            (aead_perm_x3),
+        .p4            (aead_perm_x4)
     );
 
     sdmc_xof_chain_family_core u_xof_chain (
@@ -159,7 +282,25 @@ module tt_um_mealycpp_ascon_sdmc_uart (
 
         .busy        (xof_busy),
         .done        (xof_done),
-        .error       (xof_error)
+        .error       (xof_error),
+
+        .perm_wr_en    (xof_perm_wr_en),
+        .perm_wr_lane  (xof_perm_wr_lane),
+        .perm_wr_data  (xof_perm_wr_data),
+        .perm_rd_en    (xof_perm_rd_en),
+        .perm_rd_lane  (xof_perm_rd_lane),
+        .perm_rd_data  (xof_perm_rd_data),
+        .perm_rd_valid (xof_perm_rd_valid),
+        .perm_start    (xof_perm_start),
+        .perm_rounds_q (xof_perm_rounds_q),
+        .perm_ready    (xof_perm_ready),
+        .perm_busy     (xof_perm_busy),
+        .perm_done     (xof_perm_done),
+        .p0            (xof_perm_x0),
+        .p1            (xof_perm_x1),
+        .p2            (xof_perm_x2),
+        .p3            (xof_perm_x3),
+        .p4            (xof_perm_x4)
     );
 
     // Tiny output serializer: AEAD output tokens -> UART2 bytes.

@@ -25,7 +25,26 @@ module sdmc_xof_chain_family_core (
 
     output reg                      busy,
     output reg                      done,
-    output reg                      error
+    output reg                      error,
+
+    // External shared ASCON permutation interface.
+    output wire                     perm_wr_en,
+    output wire [2:0]               perm_wr_lane,
+    output wire [63:0]              perm_wr_data,
+    output wire                     perm_rd_en,
+    output wire [2:0]               perm_rd_lane,
+    input  wire [63:0]              perm_rd_data,
+    input  wire                     perm_rd_valid,
+    output wire                     perm_start,
+    output wire [3:0]               perm_rounds_q,
+    input  wire                     perm_ready,
+    input  wire                     perm_busy,
+    input  wire                     perm_done,
+    input  wire [63:0]              p0,
+    input  wire [63:0]              p1,
+    input  wire [63:0]              p2,
+    input  wire [63:0]              p3,
+    input  wire [63:0]              p4
 );
 
     localparam S_IDLE       = 3'd0;
@@ -120,7 +139,25 @@ module sdmc_xof_chain_family_core (
 
         .busy        (inner_busy),
         .done        (inner_done),
-        .error       (inner_error)
+        .error       (inner_error),
+
+        .perm_wr_en    (perm_wr_en),
+        .perm_wr_lane  (perm_wr_lane),
+        .perm_wr_data  (perm_wr_data),
+        .perm_rd_en    (perm_rd_en),
+        .perm_rd_lane  (perm_rd_lane),
+        .perm_rd_data  (perm_rd_data),
+        .perm_rd_valid (perm_rd_valid),
+        .perm_start    (perm_start),
+        .perm_rounds_q (perm_rounds_q),
+        .perm_ready    (perm_ready),
+        .perm_busy     (perm_busy),
+        .perm_done     (perm_done),
+        .p0            (p0),
+        .p1            (p1),
+        .p2            (p2),
+        .p3            (p3),
+        .p4            (p4)
     );
 
     wire _unused = &{use_cxof, cs_len[0], inner_busy, 1'b0};

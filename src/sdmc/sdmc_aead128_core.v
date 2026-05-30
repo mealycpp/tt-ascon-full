@@ -24,7 +24,23 @@ module sdmc_aead128_core (
     output reg                      busy,
     output reg                      done,
     output reg                      error,
-    output reg                      auth_ok
+    output reg                      auth_ok,
+
+    // External shared ASCON permutation interface.
+    // Phase A: behavior unchanged; the permutation instance is moved to top.
+    output reg                      perm_wr_en,
+    output reg  [2:0]               perm_wr_lane,
+    output reg  [63:0]              perm_wr_data,
+    output reg                      perm_start,
+    output reg  [3:0]               perm_rounds_q,
+    input  wire                     perm_ready,
+    input  wire                     perm_busy,
+    input  wire                     perm_done,
+    input  wire [63:0]              p0,
+    input  wire [63:0]              p1,
+    input  wire [63:0]              p2,
+    input  wire [63:0]              p3,
+    input  wire [63:0]              p4
 );
 
     localparam S_IDLE             = 7'd0;
@@ -147,50 +163,6 @@ module sdmc_aead128_core (
             endcase
         end
     endfunction
-
-    reg        perm_wr_en;
-    reg [2:0]  perm_wr_lane;
-    reg [63:0] perm_wr_data;
-
-    reg        perm_start;
-    reg [3:0]  perm_rounds_q;
-    wire       perm_ready;
-    wire       perm_busy;
-    wire       perm_done;
-
-    wire [63:0] p0;
-    wire [63:0] p1;
-    wire [63:0] p2;
-    wire [63:0] p3;
-    wire [63:0] p4;
-
-    sdmc_ascon_perm_unit64 u_perm (
-        .clk           (clk),
-        .rst_n         (rst_n),
-        .clear         (clear),
-
-        .host_wr_en    (perm_wr_en),
-        .host_wr_lane  (perm_wr_lane),
-        .host_wr_data  (perm_wr_data),
-
-        .host_rd_en    (1'b0),
-        .host_rd_lane  (3'd0),
-        .host_rd_data  (),
-        .host_rd_valid (),
-
-        .start         (perm_start),
-        .rounds        (perm_rounds_q),
-
-        .host_ready    (perm_ready),
-        .busy          (perm_busy),
-        .done          (perm_done),
-
-        .x0            (p0),
-        .x1            (p1),
-        .x2            (p2),
-        .x3            (p3),
-        .x4            (p4)
-    );
 
     wire _unused = &{perm_busy, tok_last, 1'b0};
 
