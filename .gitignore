@@ -39,3 +39,5 @@ release_evidence_*/
 timing_50mhz_*/
 _final_color_report/
 GDS_logs/
+
+hotspot_scan/
