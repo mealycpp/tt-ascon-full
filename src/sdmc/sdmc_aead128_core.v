@@ -114,6 +114,10 @@ module sdmc_aead128_core (
     reg [63:0] w1_q;
     reg [3:0]  w0_bytes_q;
     reg [3:0]  w1_bytes_q;
+    reg [63:0] w0_mask_q;
+    reg [63:0] w1_mask_q;
+    reg [63:0] w0_pad_word_q;
+    reg [63:0] w1_pad_word_q;
     reg        w0_has_real_q;
     reg        w1_has_real_q;
     reg        w0_pad_q;
@@ -132,37 +136,38 @@ module sdmc_aead128_core (
     function [63:0] mask_n;
         input [3:0] n;
         begin
-            case (n)
-                4'd0: mask_n = 64'h0000_0000_0000_0000;
-                4'd1: mask_n = 64'h0000_0000_0000_00ff;
-                4'd2: mask_n = 64'h0000_0000_0000_ffff;
-                4'd3: mask_n = 64'h0000_0000_00ff_ffff;
-                4'd4: mask_n = 64'h0000_0000_ffff_ffff;
-                4'd5: mask_n = 64'h0000_00ff_ffff_ffff;
-                4'd6: mask_n = 64'h0000_ffff_ffff_ffff;
-                4'd7: mask_n = 64'h00ff_ffff_ffff_ffff;
-                4'd8: mask_n = 64'hffff_ffff_ffff_ffff;
-                default: mask_n = 64'h0000_0000_0000_0000;
-            endcase
+            // Byte mask without a case table, to avoid ROM-style mux inference.
+            mask_n = {
+                (n >= 4'd8) ? 8'hff : 8'h00,
+                (n >= 4'd7) ? 8'hff : 8'h00,
+                (n >= 4'd6) ? 8'hff : 8'h00,
+                (n >= 4'd5) ? 8'hff : 8'h00,
+                (n >= 4'd4) ? 8'hff : 8'h00,
+                (n >= 4'd3) ? 8'hff : 8'h00,
+                (n >= 4'd2) ? 8'hff : 8'h00,
+                (n >= 4'd1) ? 8'hff : 8'h00
+            };
         end
     endfunction
 
     function [63:0] pad_n;
         input [2:0] n;
         begin
-            case (n[2:0])
-                3'd0: pad_n = 64'h0000_0000_0000_0001;
-                3'd1: pad_n = 64'h0000_0000_0000_0100;
-                3'd2: pad_n = 64'h0000_0000_0001_0000;
-                3'd3: pad_n = 64'h0000_0000_0100_0000;
-                3'd4: pad_n = 64'h0000_0001_0000_0000;
-                3'd5: pad_n = 64'h0000_0100_0000_0000;
-                3'd6: pad_n = 64'h0001_0000_0000_0000;
-                3'd7: pad_n = 64'h0100_0000_0000_0000;
-                default: pad_n = 64'h0000_0000_0000_0001;
-            endcase
+            // ASCON pad byte 0x01 at byte index n, without a case table.
+            pad_n = {
+                (n == 3'd7) ? 8'h01 : 8'h00,
+                (n == 3'd6) ? 8'h01 : 8'h00,
+                (n == 3'd5) ? 8'h01 : 8'h00,
+                (n == 3'd4) ? 8'h01 : 8'h00,
+                (n == 3'd3) ? 8'h01 : 8'h00,
+                (n == 3'd2) ? 8'h01 : 8'h00,
+                (n == 3'd1) ? 8'h01 : 8'h00,
+                (n == 3'd0) ? 8'h01 : 8'h00
+            };
         end
     endfunction
+
+    localparam [63:0] PAD_BYTE0 = 64'h0000_0000_0000_0001;
 
     wire _unused = &{perm_busy, tok_last, 1'b0};
 
@@ -182,6 +187,10 @@ module sdmc_aead128_core (
             w1_q              <= 64'd0;
             w0_bytes_q        <= 4'd0;
             w1_bytes_q        <= 4'd0;
+            w0_mask_q         <= 64'd0;
+            w1_mask_q         <= 64'd0;
+            w0_pad_word_q     <= PAD_BYTE0;
+            w1_pad_word_q     <= PAD_BYTE0;
             w0_has_real_q     <= 1'b0;
             w1_has_real_q     <= 1'b0;
             w0_pad_q          <= 1'b0;
@@ -423,6 +432,8 @@ module sdmc_aead128_core (
                         end else begin
                             w0_q          <= tok_data;
                             w0_bytes_q    <= tok_bytes;
+                            w0_mask_q     <= mask_n(tok_bytes);
+                            w0_pad_word_q <= pad_n(tok_bytes[2:0]);
                             w0_has_real_q <= 1'b1;
                             in_pop        <= 1'b1;
 
@@ -462,6 +473,8 @@ module sdmc_aead128_core (
                         end else begin
                             w1_q          <= tok_data;
                             w1_bytes_q    <= tok_bytes;
+                            w1_mask_q     <= mask_n(tok_bytes);
+                            w1_pad_word_q <= pad_n(tok_bytes[2:0]);
                             w1_has_real_q <= 1'b1;
                             in_pop        <= 1'b1;
 
@@ -482,10 +495,10 @@ module sdmc_aead128_core (
                 S_AD_X0: begin
                     if (perm_ready) begin
                         if (block_pad_only_q) begin
-                            set_wr(3'd0, p0 ^ pad_n(3'd0));
+                            set_wr(3'd0, p0 ^ PAD_BYTE0);
                         end else if (w0_has_real_q) begin
                             if (w0_pad_q) begin
-                                set_wr(3'd0, p0 ^ ((w0_q & mask_n(w0_bytes_q)) ^ pad_n(w0_bytes_q[2:0])));
+                                set_wr(3'd0, p0 ^ ((w0_q & w0_mask_q) ^ w0_pad_word_q));
                             end else begin
                                 set_wr(3'd0, p0 ^ w0_q);
                             end
@@ -500,12 +513,12 @@ module sdmc_aead128_core (
                     if (perm_ready) begin
                         if (w1_has_real_q) begin
                             if (w1_pad_q) begin
-                                set_wr(3'd1, p1 ^ ((w1_q & mask_n(w1_bytes_q)) ^ pad_n(w1_bytes_q[2:0])));
+                                set_wr(3'd1, p1 ^ ((w1_q & w1_mask_q) ^ w1_pad_word_q));
                             end else begin
                                 set_wr(3'd1, p1 ^ w1_q);
                             end
                         end else if (w1_pad_q) begin
-                            set_wr(3'd1, p1 ^ pad_n(3'd0));
+                            set_wr(3'd1, p1 ^ PAD_BYTE0);
                         end else begin
                             set_wr(3'd1, p1);
                         end
@@ -565,6 +578,8 @@ module sdmc_aead128_core (
                         end else begin
                             w0_q          <= tok_data;
                             w0_bytes_q    <= tok_bytes;
+                            w0_mask_q     <= mask_n(tok_bytes);
+                            w0_pad_word_q <= pad_n(tok_bytes[2:0]);
                             w0_has_real_q <= 1'b1;
                             in_pop        <= 1'b1;
 
@@ -604,6 +619,8 @@ module sdmc_aead128_core (
                         end else begin
                             w1_q          <= tok_data;
                             w1_bytes_q    <= tok_bytes;
+                            w1_mask_q     <= mask_n(tok_bytes);
+                            w1_pad_word_q <= pad_n(tok_bytes[2:0]);
                             w1_has_real_q <= 1'b1;
                             in_pop        <= 1'b1;
 
@@ -626,20 +643,20 @@ module sdmc_aead128_core (
                 S_DATA_X0: begin
                     if (perm_ready) begin
                         if (block_pad_only_q) begin
-                            set_wr(3'd0, p0 ^ pad_n(3'd0));
+                            set_wr(3'd0, p0 ^ PAD_BYTE0);
                         end else if (w0_has_real_q) begin
                             if (is_decrypt_q) begin
-                                out_w0_q <= (p0 ^ w0_q) & mask_n(w0_bytes_q);
+                                out_w0_q <= (p0 ^ w0_q) & w0_mask_q;
                                 if (w0_pad_q) begin
-                                    set_wr(3'd0, (p0 & ~mask_n(w0_bytes_q)) ^
-                                                 ((w0_q & mask_n(w0_bytes_q)) ^ pad_n(w0_bytes_q[2:0])));
+                                    set_wr(3'd0, (p0 & ~w0_mask_q) ^
+                                                 ((w0_q & w0_mask_q) ^ w0_pad_word_q));
                                 end else begin
                                     set_wr(3'd0, w0_q);
                                 end
                             end else begin
                                 out_w0_q <= p0 ^ w0_q;
                                 if (w0_pad_q) begin
-                                    set_wr(3'd0, p0 ^ ((w0_q & mask_n(w0_bytes_q)) ^ pad_n(w0_bytes_q[2:0])));
+                                    set_wr(3'd0, p0 ^ ((w0_q & w0_mask_q) ^ w0_pad_word_q));
                                 end else begin
                                     set_wr(3'd0, p0 ^ w0_q);
                                 end
@@ -655,23 +672,23 @@ module sdmc_aead128_core (
                     if (perm_ready) begin
                         if (w1_has_real_q) begin
                             if (is_decrypt_q) begin
-                                out_w1_q <= (p1 ^ w1_q) & mask_n(w1_bytes_q);
+                                out_w1_q <= (p1 ^ w1_q) & w1_mask_q;
                                 if (w1_pad_q) begin
-                                    set_wr(3'd1, (p1 & ~mask_n(w1_bytes_q)) ^
-                                                 ((w1_q & mask_n(w1_bytes_q)) ^ pad_n(w1_bytes_q[2:0])));
+                                    set_wr(3'd1, (p1 & ~w1_mask_q) ^
+                                                 ((w1_q & w1_mask_q) ^ w1_pad_word_q));
                                 end else begin
                                     set_wr(3'd1, w1_q);
                                 end
                             end else begin
                                 out_w1_q <= p1 ^ w1_q;
                                 if (w1_pad_q) begin
-                                    set_wr(3'd1, p1 ^ ((w1_q & mask_n(w1_bytes_q)) ^ pad_n(w1_bytes_q[2:0])));
+                                    set_wr(3'd1, p1 ^ ((w1_q & w1_mask_q) ^ w1_pad_word_q));
                                 end else begin
                                     set_wr(3'd1, p1 ^ w1_q);
                                 end
                             end
                         end else if (w1_pad_q) begin
-                            set_wr(3'd1, p1 ^ pad_n(3'd0));
+                            set_wr(3'd1, p1 ^ PAD_BYTE0);
                         end else begin
                             set_wr(3'd1, p1);
                         end
