@@ -33,3 +33,9 @@ test/sdmc_top_uart_aead_matrix/
 
 # Local compiled helper binaries
 tools/ascon_aead128_ref_cli
+
+# Local ASIC/GDS evidence and temporary reports
+release_evidence_*/
+timing_50mhz_*/
+_final_color_report/
+GDS_logs/
