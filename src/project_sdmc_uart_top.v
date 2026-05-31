@@ -13,6 +13,8 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     input  wire       rst_n
 );
 
+
+    wire _unused_ui_in = &{ui_in[7:1], 1'b0};
     wire uart0_rx = ui_in[0];  // single RX stream: command + key + nonce + AD + msg/tag
     wire clear = !ena;
 
@@ -126,15 +128,15 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire [63:0]              xof_perm_x3;
     wire [63:0]              xof_perm_x4;
 
-    wire                     shared_perm_wr_en;
-    wire [2:0]               shared_perm_wr_lane;
-    wire [63:0]              shared_perm_wr_data;
-    wire                     shared_perm_rd_en;
-    wire [2:0]               shared_perm_rd_lane;
+    reg                      shared_perm_wr_en;
+    reg  [2:0]               shared_perm_wr_lane;
+    reg  [63:0]              shared_perm_wr_data;
+    reg                      shared_perm_rd_en;
+    reg  [2:0]               shared_perm_rd_lane;
     wire [63:0]              shared_perm_rd_data;
     wire                     shared_perm_rd_valid;
-    wire                     shared_perm_start;
-    wire [3:0]               shared_perm_rounds_q;
+    reg                      shared_perm_start;
+    reg  [3:0]               shared_perm_rounds_q;
     wire                     shared_perm_ready;
     wire                     shared_perm_busy;
     wire                     shared_perm_done;
@@ -150,30 +152,66 @@ module tt_um_mealycpp_ascon_sdmc_uart (
                                          (front_mode == 4'd4) || (front_mode == 4'd7);
     wire                     mode_aead = (front_mode == 4'd5) || (front_mode == 4'd6);
     wire                     core_start = aead_start;
-    wire                     shared_sel_xof = mode_xof;
+    // Registered shared-permutation command boundary.
+    // This removes the live AEAD-vs-HASH/XOF/CXOF combinational mux cone
+    // in front of the single shared ASCON permutation.
+    reg shared_sel_xof_q;
 
-    assign shared_perm_wr_en    = shared_sel_xof ? xof_perm_wr_en    : aead_perm_wr_en;
-    assign shared_perm_wr_lane  = shared_sel_xof ? xof_perm_wr_lane  : aead_perm_wr_lane;
-    assign shared_perm_wr_data  = shared_sel_xof ? xof_perm_wr_data  : aead_perm_wr_data;
-    assign shared_perm_rd_en    = shared_sel_xof ? xof_perm_rd_en    : 1'b0;
-    assign shared_perm_rd_lane  = shared_sel_xof ? xof_perm_rd_lane  : 3'd0;
-    assign shared_perm_start    = shared_sel_xof ? xof_perm_start    : aead_perm_start;
-    assign shared_perm_rounds_q = shared_sel_xof ? xof_perm_rounds_q : aead_perm_rounds_q;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            shared_sel_xof_q     <= 1'b1;
+            shared_perm_wr_en    <= 1'b0;
+            shared_perm_wr_lane  <= 3'd0;
+            shared_perm_wr_data  <= 64'd0;
+            shared_perm_rd_en    <= 1'b0;
+            shared_perm_rd_lane  <= 3'd0;
+            shared_perm_start    <= 1'b0;
+            shared_perm_rounds_q <= 4'd12;
+        end else begin
+            shared_perm_wr_en    <= 1'b0;
+            shared_perm_wr_lane  <= 3'd0;
+            shared_perm_wr_data  <= 64'd0;
+            shared_perm_rd_en    <= 1'b0;
+            shared_perm_rd_lane  <= 3'd0;
+            shared_perm_start    <= 1'b0;
+            shared_perm_rounds_q <= 4'd12;
 
-    assign aead_perm_ready = (!shared_sel_xof) ? shared_perm_ready : 1'b0;
-    assign aead_perm_busy  = (!shared_sel_xof) ? shared_perm_busy  : 1'b0;
-    assign aead_perm_done  = (!shared_sel_xof) ? shared_perm_done  : 1'b0;
+            if (mode_xof) begin
+                shared_sel_xof_q     <= 1'b1;
+                shared_perm_wr_en    <= xof_perm_wr_en;
+                shared_perm_wr_lane  <= xof_perm_wr_lane;
+                shared_perm_wr_data  <= xof_perm_wr_data;
+                shared_perm_rd_en    <= xof_perm_rd_en;
+                shared_perm_rd_lane  <= xof_perm_rd_lane;
+                shared_perm_start    <= xof_perm_start;
+                shared_perm_rounds_q <= xof_perm_rounds_q;
+            end else if (mode_aead) begin
+                shared_sel_xof_q     <= 1'b0;
+                shared_perm_wr_en    <= aead_perm_wr_en;
+                shared_perm_wr_lane  <= aead_perm_wr_lane;
+                shared_perm_wr_data  <= aead_perm_wr_data;
+                shared_perm_rd_en    <= 1'b0;
+                shared_perm_rd_lane  <= 3'd0;
+                shared_perm_start    <= aead_perm_start;
+                shared_perm_rounds_q <= aead_perm_rounds_q;
+            end
+        end
+    end
+
+    assign aead_perm_ready = (!shared_sel_xof_q) ? shared_perm_ready : 1'b0;
+    assign aead_perm_busy  = (!shared_sel_xof_q) ? shared_perm_busy  : 1'b0;
+    assign aead_perm_done  = (!shared_sel_xof_q) ? shared_perm_done  : 1'b0;
     assign aead_perm_x0    = shared_perm_x0;
     assign aead_perm_x1    = shared_perm_x1;
     assign aead_perm_x2    = shared_perm_x2;
     assign aead_perm_x3    = shared_perm_x3;
     assign aead_perm_x4    = shared_perm_x4;
 
-    assign xof_perm_ready    = shared_sel_xof ? shared_perm_ready    : 1'b0;
-    assign xof_perm_busy     = shared_sel_xof ? shared_perm_busy     : 1'b0;
-    assign xof_perm_done     = shared_sel_xof ? shared_perm_done     : 1'b0;
+    assign xof_perm_ready    = shared_sel_xof_q ? shared_perm_ready    : 1'b0;
+    assign xof_perm_busy     = shared_sel_xof_q ? shared_perm_busy     : 1'b0;
+    assign xof_perm_done     = shared_sel_xof_q ? shared_perm_done     : 1'b0;
     assign xof_perm_rd_data  = shared_perm_rd_data;
-    assign xof_perm_rd_valid = shared_sel_xof ? shared_perm_rd_valid : 1'b0;
+    assign xof_perm_rd_valid = shared_sel_xof_q ? shared_perm_rd_valid : 1'b0;
     assign xof_perm_x0       = shared_perm_x0;
     assign xof_perm_x1       = shared_perm_x1;
     assign xof_perm_x2       = shared_perm_x2;
@@ -218,6 +256,7 @@ module tt_um_mealycpp_ascon_sdmc_uart (
 
     wire [`SDMC_TOKEN_W-1:0] aead_out_token =
         xof_out_push ? xof_out_token : aead_core_out_token;
+    wire _unused_aead_out_last = &{aead_out_token[72], 1'b0};
     wire aead_out_push = xof_out_push | aead_core_out_push;
 
     sdmc_aead128_core u_aead (

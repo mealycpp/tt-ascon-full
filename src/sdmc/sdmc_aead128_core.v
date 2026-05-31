@@ -148,7 +148,7 @@ module sdmc_aead128_core (
     endfunction
 
     function [63:0] pad_n;
-        input [3:0] n;
+        input [2:0] n;
         begin
             case (n[2:0])
                 3'd0: pad_n = 64'h0000_0000_0000_0001;
@@ -482,10 +482,10 @@ module sdmc_aead128_core (
                 S_AD_X0: begin
                     if (perm_ready) begin
                         if (block_pad_only_q) begin
-                            set_wr(3'd0, p0 ^ pad_n(4'd0));
+                            set_wr(3'd0, p0 ^ pad_n(3'd0));
                         end else if (w0_has_real_q) begin
                             if (w0_pad_q) begin
-                                set_wr(3'd0, p0 ^ ((w0_q & mask_n(w0_bytes_q)) ^ pad_n(w0_bytes_q)));
+                                set_wr(3'd0, p0 ^ ((w0_q & mask_n(w0_bytes_q)) ^ pad_n(w0_bytes_q[2:0])));
                             end else begin
                                 set_wr(3'd0, p0 ^ w0_q);
                             end
@@ -500,12 +500,12 @@ module sdmc_aead128_core (
                     if (perm_ready) begin
                         if (w1_has_real_q) begin
                             if (w1_pad_q) begin
-                                set_wr(3'd1, p1 ^ ((w1_q & mask_n(w1_bytes_q)) ^ pad_n(w1_bytes_q)));
+                                set_wr(3'd1, p1 ^ ((w1_q & mask_n(w1_bytes_q)) ^ pad_n(w1_bytes_q[2:0])));
                             end else begin
                                 set_wr(3'd1, p1 ^ w1_q);
                             end
                         end else if (w1_pad_q) begin
-                            set_wr(3'd1, p1 ^ pad_n(4'd0));
+                            set_wr(3'd1, p1 ^ pad_n(3'd0));
                         end else begin
                             set_wr(3'd1, p1);
                         end
@@ -626,20 +626,20 @@ module sdmc_aead128_core (
                 S_DATA_X0: begin
                     if (perm_ready) begin
                         if (block_pad_only_q) begin
-                            set_wr(3'd0, p0 ^ pad_n(4'd0));
+                            set_wr(3'd0, p0 ^ pad_n(3'd0));
                         end else if (w0_has_real_q) begin
                             if (is_decrypt_q) begin
                                 out_w0_q <= (p0 ^ w0_q) & mask_n(w0_bytes_q);
                                 if (w0_pad_q) begin
                                     set_wr(3'd0, (p0 & ~mask_n(w0_bytes_q)) ^
-                                                 ((w0_q & mask_n(w0_bytes_q)) ^ pad_n(w0_bytes_q)));
+                                                 ((w0_q & mask_n(w0_bytes_q)) ^ pad_n(w0_bytes_q[2:0])));
                                 end else begin
                                     set_wr(3'd0, w0_q);
                                 end
                             end else begin
                                 out_w0_q <= p0 ^ w0_q;
                                 if (w0_pad_q) begin
-                                    set_wr(3'd0, p0 ^ ((w0_q & mask_n(w0_bytes_q)) ^ pad_n(w0_bytes_q)));
+                                    set_wr(3'd0, p0 ^ ((w0_q & mask_n(w0_bytes_q)) ^ pad_n(w0_bytes_q[2:0])));
                                 end else begin
                                     set_wr(3'd0, p0 ^ w0_q);
                                 end
@@ -658,20 +658,20 @@ module sdmc_aead128_core (
                                 out_w1_q <= (p1 ^ w1_q) & mask_n(w1_bytes_q);
                                 if (w1_pad_q) begin
                                     set_wr(3'd1, (p1 & ~mask_n(w1_bytes_q)) ^
-                                                 ((w1_q & mask_n(w1_bytes_q)) ^ pad_n(w1_bytes_q)));
+                                                 ((w1_q & mask_n(w1_bytes_q)) ^ pad_n(w1_bytes_q[2:0])));
                                 end else begin
                                     set_wr(3'd1, w1_q);
                                 end
                             end else begin
                                 out_w1_q <= p1 ^ w1_q;
                                 if (w1_pad_q) begin
-                                    set_wr(3'd1, p1 ^ ((w1_q & mask_n(w1_bytes_q)) ^ pad_n(w1_bytes_q)));
+                                    set_wr(3'd1, p1 ^ ((w1_q & mask_n(w1_bytes_q)) ^ pad_n(w1_bytes_q[2:0])));
                                 end else begin
                                     set_wr(3'd1, p1 ^ w1_q);
                                 end
                             end
                         end else if (w1_pad_q) begin
-                            set_wr(3'd1, p1 ^ pad_n(4'd0));
+                            set_wr(3'd1, p1 ^ pad_n(3'd0));
                         end else begin
                             set_wr(3'd1, p1);
                         end

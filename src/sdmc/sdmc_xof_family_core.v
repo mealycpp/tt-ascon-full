@@ -80,7 +80,6 @@ module sdmc_xof_family_core (
     reg [63:0] iv_q;
     reg [63:0] absorb_q;
 
-    reg [63:0] msg_word_q;
     reg [3:0]  msg_bytes_q;
     reg        msg_last_q;
     reg        empty_pad_q;
@@ -107,7 +106,6 @@ module sdmc_xof_family_core (
             iv_q         <= 64'd0;
             absorb_q     <= 64'd0;
 
-            msg_word_q   <= 64'd0;
             msg_bytes_q  <= 4'd0;
             msg_last_q   <= 1'b0;
             empty_pad_q  <= 1'b0;
@@ -136,7 +134,6 @@ module sdmc_xof_family_core (
             iv_q         <= 64'd0;
             absorb_q     <= 64'd0;
 
-            msg_word_q   <= 64'd0;
             msg_bytes_q  <= 4'd0;
             msg_last_q   <= 1'b0;
             empty_pad_q  <= 1'b0;
@@ -236,14 +233,12 @@ module sdmc_xof_family_core (
                     if (perm_done) begin
                         if (use_cxof) begin
                             phase_q     <= PH_CSLEN;
-                            msg_word_q  <= {45'd0, cs_len, 3'b000};
                             absorb_q    <= {45'd0, cs_len, 3'b000};
                             msg_bytes_q <= 4'd8;
                             msg_last_q  <= 1'b0;
                             state       <= S_ABS_RD;
                         end else if (msg_len == 16'd0) begin
                             phase_q     <= PH_MSG;
-                            msg_word_q  <= 64'd0;
                             absorb_q    <= 64'h0000_0000_0000_0001;
                             msg_bytes_q <= 4'd0;
                             msg_last_q  <= 1'b1;
@@ -262,7 +257,6 @@ module sdmc_xof_family_core (
                             state <= S_ERR;
                         end else begin
                             in_pop      <= 1'b1;
-                            msg_word_q  <= tok_data;
                             msg_bytes_q <= tok_bytes;
                             msg_last_q  <= tok_last;
 
@@ -294,7 +288,6 @@ module sdmc_xof_family_core (
                         end else begin
                             in_pop      <= 1'b1;
                             phase_q     <= PH_CS;
-                            msg_word_q  <= tok_data;
                             msg_bytes_q <= tok_bytes;
                             msg_last_q  <= tok_last;
 
@@ -354,7 +347,6 @@ module sdmc_xof_family_core (
                         if (phase_q == PH_CSLEN) begin
                             phase_q <= PH_CS;
                             if (cs_len == 16'd0) begin
-                                msg_word_q  <= 64'd0;
                                 absorb_q    <= 64'h0000_0000_0000_0001;
                                 msg_bytes_q <= 4'd0;
                                 msg_last_q  <= 1'b1;
@@ -367,7 +359,6 @@ module sdmc_xof_family_core (
                             if (phase_q == PH_CS) begin
                                 phase_q <= PH_MSG;
                                 if (msg_len == 16'd0) begin
-                                    msg_word_q  <= 64'd0;
                                     absorb_q    <= 64'h0000_0000_0000_0001;
                                     msg_bytes_q <= 4'd0;
                                     msg_last_q  <= 1'b1;
@@ -381,14 +372,12 @@ module sdmc_xof_family_core (
                         end else if (msg_last_q) begin
                             if (msg_bytes_q == 4'd8) begin
                                 empty_pad_q <= 1'b1;
-                                msg_word_q  <= 64'd0;
                                 absorb_q    <= 64'h0000_0000_0000_0001;
                                 msg_bytes_q <= 4'd0;
                                 state       <= S_ABS_RD;
                             end else if (phase_q == PH_CS) begin
                                 phase_q <= PH_MSG;
                                 if (msg_len == 16'd0) begin
-                                    msg_word_q  <= 64'd0;
                                     absorb_q    <= 64'h0000_0000_0000_0001;
                                     msg_bytes_q <= 4'd0;
                                     msg_last_q  <= 1'b1;

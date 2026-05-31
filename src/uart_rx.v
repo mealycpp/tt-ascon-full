@@ -24,6 +24,8 @@ module uart_rx (
     output reg         rx_active
 );
 
+
+    wire _unused_baud_div_low = &{baud_div[3:0], 1'b0};
     // synchronize rx into clk domain (2-FF synchronizer)
     reg rx_sync_0, rx_sync_1;
     always @(posedge clk or negedge rst_n) begin

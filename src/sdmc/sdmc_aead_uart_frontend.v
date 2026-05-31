@@ -97,7 +97,7 @@ module sdmc_aead_uart_frontend (
 
     function [63:0] put_byte;
         input [63:0] word;
-        input [3:0]  idx;
+        input [2:0]  idx;
         input [7:0]  b;
         begin
             put_byte = word;
@@ -139,7 +139,7 @@ module sdmc_aead_uart_frontend (
     wire [7:0] phase_byte  = phase_uses_uart2(phase) ? rx2_byte  : rx1_byte;
     wire       phase_valid = phase_uses_uart2(phase) ? rx2_valid : rx1_valid;
 
-    wire [63:0] pack_next = put_byte(pack_q, pack_count_q, phase_byte);
+    wire [63:0] pack_next = put_byte(pack_q, pack_count_q[2:0], phase_byte);
     wire [3:0]  count_next = pack_count_q + 4'd1;
     wire        last_byte_of_phase = (phase_left == 16'd1);
     wire        flush_word = phase_valid && !token_full_q &&
@@ -186,13 +186,14 @@ module sdmc_aead_uart_frontend (
         end
     endfunction
 
+    wire [3:0]  advance_phase_np_w  = next_phase(phase);
+    wire [15:0] advance_phase_len_w = phase_len(advance_phase_np_w);
+
     task advance_phase;
-        reg [3:0] np;
         begin
-            np = next_phase(phase);
-            phase <= np;
-            phase_dbg <= np;
-            phase_left <= phase_len(np);
+            phase      <= advance_phase_np_w;
+            phase_dbg  <= advance_phase_np_w;
+            phase_left <= advance_phase_len_w;
         end
     endtask
 
