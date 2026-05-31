@@ -1,0 +1,8 @@
+commit 4bcf1e0c0c91e3e6bad0b48a13900d9f69bd2988
+Author: Mohamed El-Hadedy <hadedy@alumni.ntnu.no>
+Date:   Sat May 30 21:12:44 2026 -0700
+
+    declare shared permutation select before use
+
+ src/project_sdmc_uart_top.v | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)

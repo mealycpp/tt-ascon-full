@@ -1,0 +1,48 @@
+{
+  "DESIGN_NAME": "tt_um_mealycpp_ascon_sdmc_uart",
+  "VERILOG_FILES": [
+    "dir::ascon_round.v",
+    "dir::ascon_permutation.v",
+    "dir::uart_rx.v",
+    "dir::uart_tx.v",
+    "dir::sdmc/sdmc_ascon_perm_unit64.v",
+    "dir::sdmc/sdmc_aead_uart_frontend.v",
+    "dir::sdmc/sdmc_aead128_core.v",
+    "dir::sdmc/sdmc_xof_family_core.v",
+    "dir::sdmc/sdmc_xof_chain_family_core.v",
+    "dir::sdmc/sdmc_crypto_helpers.v",
+    "dir::project_sdmc_uart_top.v"
+  ],
+  "DIE_AREA": "0 0 1440.32 736.96",
+  "FP_DEF_TEMPLATE": "dir::../tt/tech/gf180mcuD/def/tt_block_4x4_pgvdd.def",
+  "VDD_PIN": "VPWR",
+  "GND_PIN": "VGND",
+  "RT_MAX_LAYER": "Metal4",
+  "VDD_PIN_VOLTAGE": 3.3,
+  "LIB_SYNTH": "pdk_dir::libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__tt_025C_3v30.lib",
+  "LIB_FASTEST": "pdk_dir::libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ff_n40C_3v60.lib",
+  "LIB_SLOWEST": "pdk_dir::libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ss_125C_3v00.lib",
+  "DEFAULT_CORNER": "nom_tt_025C_3v30",
+  "STA_CORNERS": [
+    "nom_tt_025C_3v30",
+    "nom_ss_125C_3v00",
+    "nom_ff_n40C_3v60",
+    "min_tt_025C_3v30",
+    "min_ss_125C_3v00",
+    "min_ff_n40C_3v60",
+    "max_tt_025C_3v30",
+    "max_ss_125C_3v00",
+    "max_ff_n40C_3v60"
+  ],
+  "LIB": {
+    "*_tt_025C_3v30": [
+      "pdk_dir::libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__tt_025C_3v30.lib"
+    ],
+    "*_ss_125C_3v00": [
+      "pdk_dir::libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ss_125C_3v00.lib"
+    ],
+    "*_ff_n40C_3v60": [
+      "pdk_dir::libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__ff_n40C_3v60.lib"
+    ]
+  }
+}
