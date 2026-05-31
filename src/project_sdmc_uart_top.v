@@ -144,6 +144,14 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire [63:0]              shared_perm_x3;
     wire [63:0]              shared_perm_x4;
 
+    wire                     mode_hash = (front_mode == 4'd1);
+    wire                     mode_xof  = mode_hash ||
+                                         (front_mode == 4'd2) || (front_mode == 4'd3) ||
+                                         (front_mode == 4'd4) || (front_mode == 4'd7);
+    wire                     mode_aead = (front_mode == 4'd5) || (front_mode == 4'd6);
+    wire                     core_start = aead_start;
+    wire                     shared_sel_xof = mode_xof;
+
     assign shared_perm_wr_en    = shared_sel_xof ? xof_perm_wr_en    : aead_perm_wr_en;
     assign shared_perm_wr_lane  = shared_sel_xof ? xof_perm_wr_lane  : aead_perm_wr_lane;
     assign shared_perm_wr_data  = shared_sel_xof ? xof_perm_wr_data  : aead_perm_wr_data;
@@ -205,14 +213,6 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire                     xof_busy;
     wire                     xof_done;
     wire                     xof_error;
-
-    wire                     mode_hash = (front_mode == 4'd1);
-    wire                     mode_xof  = mode_hash ||
-                                         (front_mode == 4'd2) || (front_mode == 4'd3) ||
-                                         (front_mode == 4'd4) || (front_mode == 4'd7);
-    wire                     mode_aead = (front_mode == 4'd5) || (front_mode == 4'd6);
-    wire                     core_start = aead_start;
-    wire                     shared_sel_xof = mode_xof;
 
     assign aead_in_pop = mode_xof ? xof_in_pop : aead_core_in_pop;
 
