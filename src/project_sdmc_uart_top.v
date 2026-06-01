@@ -184,7 +184,7 @@ module tt_um_mealycpp_ascon_sdmc_uart (
             op_xof_q  <= mode_xof_now;
             op_hash_q <= mode_hash_now;
             op_cxof_q <= mode_cxof_now;
-        end else if (aead_done || xof_done || aead_error || xof_error) begin
+        end else if (done_any_q || error_any_q) begin
             op_aead_q <= 1'b0;
             op_xof_q  <= 1'b0;
             op_hash_q <= 1'b0;
@@ -539,11 +539,58 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         .tx       (uart2_tx)
     );
 
+    // Registered top-level status boundary.
+    // This cuts long combinational cones from AEAD/XOF/front-end status
+    // into top-level sticky/status/release logic.
+    reg front_error_q;
+    reg aead_error_q;
+    reg xof_error_q;
+    reg aead_done_q;
+    reg xof_done_q;
+    reg front_busy_q;
+    reg aead_busy_q;
+    reg xof_busy_q;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            front_error_q <= 1'b0;
+            aead_error_q  <= 1'b0;
+            xof_error_q   <= 1'b0;
+            aead_done_q   <= 1'b0;
+            xof_done_q    <= 1'b0;
+            front_busy_q  <= 1'b0;
+            aead_busy_q   <= 1'b0;
+            xof_busy_q    <= 1'b0;
+        end else if (clear || aead_start) begin
+            front_error_q <= 1'b0;
+            aead_error_q  <= 1'b0;
+            xof_error_q   <= 1'b0;
+            aead_done_q   <= 1'b0;
+            xof_done_q    <= 1'b0;
+            front_busy_q  <= front_busy;
+            aead_busy_q   <= aead_busy;
+            xof_busy_q    <= xof_busy;
+        end else begin
+            front_error_q <= front_error;
+            aead_error_q  <= aead_error;
+            xof_error_q   <= xof_error;
+            aead_done_q   <= aead_done;
+            xof_done_q    <= xof_done;
+            front_busy_q  <= front_busy;
+            aead_busy_q   <= aead_busy;
+            xof_busy_q    <= xof_busy;
+        end
+    end
+
+    wire error_any_q = front_error_q | aead_error_q | xof_error_q;
+    wire done_any_q  = aead_done_q | xof_done_q;
+    wire busy_any_q  = front_busy_q | aead_busy_q | xof_busy_q;
+
     reg error_sticky;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) error_sticky <= 1'b0;
         else if (clear) error_sticky <= 1'b0;
-        else if (front_error || aead_error || xof_error) error_sticky <= 1'b1;
+        else if (error_any_q) error_sticky <= 1'b1;
         else if (aead_start) error_sticky <= 1'b0;
     end
 
@@ -556,8 +603,8 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     assign uo_out[0] = uart2_tx;  // single TX stream mirror
     assign uo_out[1] = 1'b1;
     assign uo_out[2] = uart2_tx;  // kept for existing tests/compatibility
-    assign uo_out[3] = front_busy | aead_busy | xof_busy;
-    assign uo_out[4] = aead_done | xof_done;
+    assign uo_out[3] = busy_any_q;
+    assign uo_out[4] = done_any_q;
     assign uo_out[5] = error_sticky;
     assign uo_out[6] = aead_auth_ok;
     assign uo_out[7] = hb_cnt[23];
