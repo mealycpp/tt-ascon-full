@@ -1,3 +1,12 @@
+
+UART_RX_SRC=$(grep -RIl --include='*.v' 'module[[:space:]]\+uart_rx' src | head -n 1)
+UART_TX_SRC=$(grep -RIl --include='*.v' 'module[[:space:]]\+uart_tx' src | head -n 1)
+
+if [ -z "$UART_RX_SRC" ] || [ -z "$UART_TX_SRC" ]; then
+  echo "FAIL missing uart_rx/uart_tx source file" >&2
+  exit 1
+fi
+
 #!/usr/bin/env bash
 set -u
 set -o pipefail
@@ -34,18 +43,25 @@ while IFS= read -r name; do
 
     rm -f "$vvp" "$log"
 
-    if ! iverilog -g2012 -I src -I src/sdmc \
-        -o "$vvp" \
-        src/ascon_round.v \
-        src/ascon_permutation.v \
-        src/uart_rx.v \
-        src/uart_tx.v \
-        src/sdmc/sdmc_aead_uart_frontend.v \
-        src/sdmc/sdmc_aead128_core.v \
-        src/sdmc/sdmc_ascon_perm_unit64.v \
-        src/sdmc/sdmc_crypto_helpers.v \
-        src/project_sdmc_uart_top.v \
-        "$tb" > "${log}.compile" 2>&1; then
+      TB_TOP=$(grep -m1 -E '^[[:space:]]*module[[:space:]]+[A-Za-z_][A-Za-z0-9_$]*' "$tb" | sed -E 's/^[[:space:]]*module[[:space:]]+([A-Za-z_][A-Za-z0-9_$]*).*/\1/')
+
+      RTL_FILES="src/ascon_round.v
+src/ascon_permutation.v
+src/uart_rx.v
+src/uart_tx.v
+src/sdmc/sdmc_aead_uart_frontend.v
+src/sdmc/sdmc_aead128_core.v
+src/sdmc/sdmc_ascon_perm_unit64.v
+src/sdmc/sdmc_crypto_helpers.v
+src/sdmc/sdmc_xof_family_core.v
+src/sdmc/sdmc_xof_chain_family_core.v
+src/project_sdmc_uart_top.v"
+
+      if ! iverilog -g2012 -I src -I src/sdmc \
+          -s "$TB_TOP" \
+          -o "$vvp" \
+          $RTL_FILES \
+          "$tb" > "${log}.compile" 2>&1; then
         echo "FAIL ❌ ${name} [COMPILE]"
         cat "${log}.compile"
         FAIL_COUNT=$((FAIL_COUNT + 1))
