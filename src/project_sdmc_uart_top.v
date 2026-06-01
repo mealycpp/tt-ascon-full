@@ -128,15 +128,15 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire [63:0]              xof_perm_x3;
     wire [63:0]              xof_perm_x4;
 
-    reg                      shared_perm_wr_en;
-    reg  [2:0]               shared_perm_wr_lane;
-    reg  [63:0]              shared_perm_wr_data;
-    reg                      shared_perm_rd_en;
-    reg  [2:0]               shared_perm_rd_lane;
+    wire                     shared_perm_wr_en;
+    wire [2:0]               shared_perm_wr_lane;
+    wire [63:0]              shared_perm_wr_data;
+    wire                     shared_perm_rd_en;
+    wire [2:0]               shared_perm_rd_lane;
     wire [63:0]              shared_perm_rd_data;
     wire                     shared_perm_rd_valid;
-    reg                      shared_perm_start;
-    reg  [3:0]               shared_perm_rounds_q;
+    wire                     shared_perm_start;
+    wire [3:0]               shared_perm_rounds_q;
     wire                     shared_perm_ready;
     wire                     shared_perm_busy;
     wire                     shared_perm_done;
@@ -152,66 +152,52 @@ module tt_um_mealycpp_ascon_sdmc_uart (
                                          (front_mode == 4'd4) || (front_mode == 4'd7);
     wire                     mode_aead = (front_mode == 4'd5) || (front_mode == 4'd6);
     wire                     core_start = aead_start;
-    // Registered shared-permutation command boundary.
-    // This removes the live AEAD-vs-HASH/XOF/CXOF combinational mux cone
-    // in front of the single shared ASCON permutation.
-    reg shared_sel_xof_q;
+    // Direct shared-permutation arbitration.
+    // AEAD is given priority when front_mode selects AEAD.
+    // This restores the same ready/start/write timing used by the passing thin AEAD tests.
+    wire shared_sel_aead = mode_aead;
+    wire shared_sel_xof  = (!mode_aead) && mode_xof;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            shared_sel_xof_q     <= 1'b1;
-            shared_perm_wr_en    <= 1'b0;
-            shared_perm_wr_lane  <= 3'd0;
-            shared_perm_wr_data  <= 64'd0;
-            shared_perm_rd_en    <= 1'b0;
-            shared_perm_rd_lane  <= 3'd0;
-            shared_perm_start    <= 1'b0;
-            shared_perm_rounds_q <= 4'd12;
-        end else begin
-            shared_perm_wr_en    <= 1'b0;
-            shared_perm_wr_lane  <= 3'd0;
-            shared_perm_wr_data  <= 64'd0;
-            shared_perm_rd_en    <= 1'b0;
-            shared_perm_rd_lane  <= 3'd0;
-            shared_perm_start    <= 1'b0;
-            shared_perm_rounds_q <= 4'd12;
+    assign shared_perm_wr_en =
+        shared_sel_aead ? aead_perm_wr_en :
+        shared_sel_xof  ? xof_perm_wr_en  : 1'b0;
 
-            if (mode_xof) begin
-                shared_sel_xof_q     <= 1'b1;
-                shared_perm_wr_en    <= xof_perm_wr_en;
-                shared_perm_wr_lane  <= xof_perm_wr_lane;
-                shared_perm_wr_data  <= xof_perm_wr_data;
-                shared_perm_rd_en    <= xof_perm_rd_en;
-                shared_perm_rd_lane  <= xof_perm_rd_lane;
-                shared_perm_start    <= xof_perm_start;
-                shared_perm_rounds_q <= xof_perm_rounds_q;
-            end else if (mode_aead) begin
-                shared_sel_xof_q     <= 1'b0;
-                shared_perm_wr_en    <= aead_perm_wr_en;
-                shared_perm_wr_lane  <= aead_perm_wr_lane;
-                shared_perm_wr_data  <= aead_perm_wr_data;
-                shared_perm_rd_en    <= 1'b0;
-                shared_perm_rd_lane  <= 3'd0;
-                shared_perm_start    <= aead_perm_start;
-                shared_perm_rounds_q <= aead_perm_rounds_q;
-            end
-        end
-    end
+    assign shared_perm_wr_lane =
+        shared_sel_aead ? aead_perm_wr_lane :
+        shared_sel_xof  ? xof_perm_wr_lane  : 3'd0;
 
-    assign aead_perm_ready = (!shared_sel_xof_q) ? shared_perm_ready : 1'b0;
-    assign aead_perm_busy  = (!shared_sel_xof_q) ? shared_perm_busy  : 1'b0;
-    assign aead_perm_done  = (!shared_sel_xof_q) ? shared_perm_done  : 1'b0;
+    assign shared_perm_wr_data =
+        shared_sel_aead ? aead_perm_wr_data :
+        shared_sel_xof  ? xof_perm_wr_data  : 64'd0;
+
+    assign shared_perm_rd_en =
+        shared_sel_xof ? xof_perm_rd_en : 1'b0;
+
+    assign shared_perm_rd_lane =
+        shared_sel_xof ? xof_perm_rd_lane : 3'd0;
+
+    assign shared_perm_start =
+        shared_sel_aead ? aead_perm_start :
+        shared_sel_xof  ? xof_perm_start  : 1'b0;
+
+    assign shared_perm_rounds_q =
+        shared_sel_aead ? aead_perm_rounds_q :
+        shared_sel_xof  ? xof_perm_rounds_q  : 4'd12;
+
+    assign aead_perm_ready = shared_sel_aead ? shared_perm_ready : 1'b0;
+    assign aead_perm_busy  = shared_sel_aead ? shared_perm_busy  : 1'b0;
+    assign aead_perm_done  = shared_sel_aead ? shared_perm_done  : 1'b0;
     assign aead_perm_x0    = shared_perm_x0;
     assign aead_perm_x1    = shared_perm_x1;
     assign aead_perm_x2    = shared_perm_x2;
     assign aead_perm_x3    = shared_perm_x3;
     assign aead_perm_x4    = shared_perm_x4;
 
-    assign xof_perm_ready    = shared_sel_xof_q ? shared_perm_ready    : 1'b0;
-    assign xof_perm_busy     = shared_sel_xof_q ? shared_perm_busy     : 1'b0;
-    assign xof_perm_done     = shared_sel_xof_q ? shared_perm_done     : 1'b0;
+    assign xof_perm_ready    = shared_sel_xof ? shared_perm_ready    : 1'b0;
+    assign xof_perm_busy     = shared_sel_xof ? shared_perm_busy     : 1'b0;
+    assign xof_perm_done     = shared_sel_xof ? shared_perm_done     : 1'b0;
     assign xof_perm_rd_data  = shared_perm_rd_data;
-    assign xof_perm_rd_valid = shared_sel_xof_q ? shared_perm_rd_valid : 1'b0;
+    assign xof_perm_rd_valid = shared_sel_xof ? shared_perm_rd_valid : 1'b0;
     assign xof_perm_x0       = shared_perm_x0;
     assign xof_perm_x1       = shared_perm_x1;
     assign xof_perm_x2       = shared_perm_x2;
@@ -252,7 +238,7 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire                     xof_done;
     wire                     xof_error;
 
-    assign aead_in_pop = mode_xof ? xof_in_pop : aead_core_in_pop;
+    assign aead_in_pop = mode_aead ? aead_core_in_pop : xof_in_pop;
 
     wire [`SDMC_TOKEN_W-1:0] aead_out_token =
         xof_out_push ? xof_out_token : aead_core_out_token;
@@ -354,9 +340,9 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     reg [3:0]  ser_kind_q;
     reg        ser_valid_q;
 
-    reg [63:0] outq_data_q  [0:OUTQ_DEPTH-1];
-    reg [3:0]  outq_countb_q[0:OUTQ_DEPTH-1];
-    reg [3:0]  outq_kind_q  [0:OUTQ_DEPTH-1];
+    reg [63:0] outq_data0_q, outq_data1_q, outq_data2_q, outq_data3_q;
+    reg [3:0]  outq_countb0_q, outq_countb1_q, outq_countb2_q, outq_countb3_q;
+    reg [3:0]  outq_kind0_q, outq_kind1_q, outq_kind2_q, outq_kind3_q;
     reg [1:0]  outq_wr_ptr_q;
     reg [1:0]  outq_rd_ptr_q;
     reg [3:0]  outq_count_q;
@@ -392,8 +378,6 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         endcase
     end
 
-    integer outq_i;
-
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             ser_data_q      <= 64'd0;
@@ -406,11 +390,9 @@ module tt_um_mealycpp_ascon_sdmc_uart (
             outq_rd_ptr_q   <= 2'd0;
             outq_count_q    <= 4'd0;
 
-            for (outq_i = 0; outq_i < OUTQ_DEPTH; outq_i = outq_i + 1) begin
-                outq_data_q[outq_i]   <= 64'd0;
-                outq_countb_q[outq_i] <= 4'd0;
-                outq_kind_q[outq_i]   <= 4'd0;
-            end
+            outq_data0_q   <= 64'd0; outq_data1_q   <= 64'd0; outq_data2_q   <= 64'd0; outq_data3_q   <= 64'd0;
+            outq_countb0_q <= 4'd0;  outq_countb1_q <= 4'd0;  outq_countb2_q <= 4'd0;  outq_countb3_q <= 4'd0;
+            outq_kind0_q   <= 4'd0;  outq_kind1_q   <= 4'd0;  outq_kind2_q   <= 4'd0;  outq_kind3_q   <= 4'd0;
         end else if (clear) begin
             ser_data_q      <= 64'd0;
             ser_count_q     <= 4'd0;
@@ -422,11 +404,9 @@ module tt_um_mealycpp_ascon_sdmc_uart (
             outq_rd_ptr_q   <= 2'd0;
             outq_count_q    <= 4'd0;
 
-            for (outq_i = 0; outq_i < OUTQ_DEPTH; outq_i = outq_i + 1) begin
-                outq_data_q[outq_i]   <= 64'd0;
-                outq_countb_q[outq_i] <= 4'd0;
-                outq_kind_q[outq_i]   <= 4'd0;
-            end
+            outq_data0_q   <= 64'd0; outq_data1_q   <= 64'd0; outq_data2_q   <= 64'd0; outq_data3_q   <= 64'd0;
+            outq_countb0_q <= 4'd0;  outq_countb1_q <= 4'd0;  outq_countb2_q <= 4'd0;  outq_countb3_q <= 4'd0;
+            outq_kind0_q   <= 4'd0;  outq_kind1_q   <= 4'd0;  outq_kind2_q   <= 4'd0;  outq_kind3_q   <= 4'd0;
         end else begin
             // Accept a new AEAD/HASH token into active if idle, otherwise enqueue.
             if (aead_out_push && !aead_out_full) begin
@@ -437,9 +417,28 @@ module tt_um_mealycpp_ascon_sdmc_uart (
                     ser_kind_q  <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
                     ser_valid_q <= 1'b1;
                 end else begin
-                    outq_data_q[outq_wr_ptr_q]   <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
-                    outq_countb_q[outq_wr_ptr_q] <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
-                    outq_kind_q[outq_wr_ptr_q]   <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                    case (outq_wr_ptr_q)
+                        2'd0: begin
+                            outq_data0_q   <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
+                            outq_countb0_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
+                            outq_kind0_q   <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                        end
+                        2'd1: begin
+                            outq_data1_q   <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
+                            outq_countb1_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
+                            outq_kind1_q   <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                        end
+                        2'd2: begin
+                            outq_data2_q   <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
+                            outq_countb2_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
+                            outq_kind2_q   <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                        end
+                        default: begin
+                            outq_data3_q   <= aead_out_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
+                            outq_countb3_q <= aead_out_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
+                            outq_kind3_q   <= aead_out_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB];
+                        end
+                    endcase
                     outq_wr_ptr_q                <= outq_wr_ptr_q + 2'd1;
                     outq_count_q                 <= outq_count_q + 4'd1;
                 end
@@ -450,9 +449,28 @@ module tt_um_mealycpp_ascon_sdmc_uart (
             if (tx_send) begin
                 if (ser_idx_q + 4'd1 >= ser_count_q) begin
                     if (!outq_empty) begin
-                        ser_data_q    <= outq_data_q[outq_rd_ptr_q];
-                        ser_count_q   <= outq_countb_q[outq_rd_ptr_q];
-                        ser_kind_q    <= outq_kind_q[outq_rd_ptr_q];
+                        case (outq_rd_ptr_q)
+                            2'd0: begin
+                                ser_data_q  <= outq_data0_q;
+                                ser_count_q <= outq_countb0_q;
+                                ser_kind_q  <= outq_kind0_q;
+                            end
+                            2'd1: begin
+                                ser_data_q  <= outq_data1_q;
+                                ser_count_q <= outq_countb1_q;
+                                ser_kind_q  <= outq_kind1_q;
+                            end
+                            2'd2: begin
+                                ser_data_q  <= outq_data2_q;
+                                ser_count_q <= outq_countb2_q;
+                                ser_kind_q  <= outq_kind2_q;
+                            end
+                            default: begin
+                                ser_data_q  <= outq_data3_q;
+                                ser_count_q <= outq_countb3_q;
+                                ser_kind_q  <= outq_kind3_q;
+                            end
+                        endcase
                         ser_idx_q     <= 4'd0;
                         ser_valid_q   <= 1'b1;
                         outq_rd_ptr_q <= outq_rd_ptr_q + 2'd1;

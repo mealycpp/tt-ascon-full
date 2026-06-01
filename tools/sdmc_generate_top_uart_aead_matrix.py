@@ -190,12 +190,12 @@ module tb_{name};
         uart_send_byte(0, 8'h00);
         uart_send_byte(0, 8'h5A);
 
-        // UART1: key, nonce, AD.
+        // Single UART: key, nonce, AD follow command frame on UART0.
 {v_uart_send_seq(1, key)}
 {v_uart_send_seq(1, nonce)}
 {v_uart_send_seq(1, ad)}
 
-        // UART2 input: plaintext/ciphertext, then tag for decrypt.
+        // Single UART: plaintext/ciphertext, then tag for decrypt, also on UART0.
 {v_uart_send_seq(2, msg_hex)}
 {v_uart_send_seq(2, tag_hex)}
 

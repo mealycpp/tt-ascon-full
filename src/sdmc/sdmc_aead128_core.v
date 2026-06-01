@@ -171,15 +171,6 @@ module sdmc_aead128_core (
 
     wire _unused = &{perm_busy, tok_last, 1'b0};
 
-    task set_wr;
-        input [2:0] lane;
-        input [63:0] data;
-        begin
-            perm_wr_en   <= 1'b1;
-            perm_wr_lane <= lane;
-            perm_wr_data <= data;
-        end
-    endtask
 
     task clear_block_regs;
         begin
@@ -342,35 +333,55 @@ module sdmc_aead128_core (
 
                 S_LOAD_X0: begin
                     if (perm_ready) begin
-                        set_wr(3'd0, `SDMC_AEAD128_IV);
+                        begin
+                            perm_wr_en   <= 1'b1;
+                            perm_wr_lane <= 3'd0;
+                            perm_wr_data <= `SDMC_AEAD128_IV;
+                        end
                         state <= S_LOAD_X1;
                     end
                 end
 
                 S_LOAD_X1: begin
                     if (perm_ready) begin
-                        set_wr(3'd1, key0_q);
+                        begin
+                            perm_wr_en   <= 1'b1;
+                            perm_wr_lane <= 3'd1;
+                            perm_wr_data <= key0_q;
+                        end
                         state <= S_LOAD_X2;
                     end
                 end
 
                 S_LOAD_X2: begin
                     if (perm_ready) begin
-                        set_wr(3'd2, key1_q);
+                        begin
+                            perm_wr_en   <= 1'b1;
+                            perm_wr_lane <= 3'd2;
+                            perm_wr_data <= key1_q;
+                        end
                         state <= S_LOAD_X3;
                     end
                 end
 
                 S_LOAD_X3: begin
                     if (perm_ready) begin
-                        set_wr(3'd3, nonce0_q);
+                        begin
+                            perm_wr_en   <= 1'b1;
+                            perm_wr_lane <= 3'd3;
+                            perm_wr_data <= nonce0_q;
+                        end
                         state <= S_LOAD_X4;
                     end
                 end
 
                 S_LOAD_X4: begin
                     if (perm_ready) begin
-                        set_wr(3'd4, nonce1_q);
+                        begin
+                            perm_wr_en   <= 1'b1;
+                            perm_wr_lane <= 3'd4;
+                            perm_wr_data <= nonce1_q;
+                        end
                         state <= S_INIT_START;
                     end
                 end
@@ -391,14 +402,22 @@ module sdmc_aead128_core (
 
                 S_INIT_X3: begin
                     if (perm_ready) begin
-                        set_wr(3'd3, p3 ^ key0_q);
+                        begin
+                            perm_wr_en   <= 1'b1;
+                            perm_wr_lane <= 3'd3;
+                            perm_wr_data <= p3 ^ key0_q;
+                        end
                         state <= S_INIT_X4;
                     end
                 end
 
                 S_INIT_X4: begin
                     if (perm_ready) begin
-                        set_wr(3'd4, p4 ^ key1_q);
+                        begin
+                            perm_wr_en   <= 1'b1;
+                            perm_wr_lane <= 3'd4;
+                            perm_wr_data <= p4 ^ key1_q;
+                        end
                         state <= S_AD_BEGIN;
                     end
                 end
@@ -495,15 +514,31 @@ module sdmc_aead128_core (
                 S_AD_X0: begin
                     if (perm_ready) begin
                         if (block_pad_only_q) begin
-                            set_wr(3'd0, p0 ^ PAD_BYTE0);
+                            begin
+                                perm_wr_en   <= 1'b1;
+                                perm_wr_lane <= 3'd0;
+                                perm_wr_data <= p0 ^ PAD_BYTE0;
+                            end
                         end else if (w0_has_real_q) begin
                             if (w0_pad_q) begin
-                                set_wr(3'd0, p0 ^ ((w0_q & w0_mask_q) ^ w0_pad_word_q));
+                                begin
+                                    perm_wr_en   <= 1'b1;
+                                    perm_wr_lane <= 3'd0;
+                                    perm_wr_data <= p0 ^ ((w0_q & w0_mask_q) ^ w0_pad_word_q);
+                                end
                             end else begin
-                                set_wr(3'd0, p0 ^ w0_q);
+                                begin
+                                    perm_wr_en   <= 1'b1;
+                                    perm_wr_lane <= 3'd0;
+                                    perm_wr_data <= p0 ^ w0_q;
+                                end
                             end
                         end else begin
-                            set_wr(3'd0, p0);
+                            begin
+                                perm_wr_en   <= 1'b1;
+                                perm_wr_lane <= 3'd0;
+                                perm_wr_data <= p0;
+                            end
                         end
                         state <= S_AD_X1;
                     end
@@ -513,14 +548,30 @@ module sdmc_aead128_core (
                     if (perm_ready) begin
                         if (w1_has_real_q) begin
                             if (w1_pad_q) begin
-                                set_wr(3'd1, p1 ^ ((w1_q & w1_mask_q) ^ w1_pad_word_q));
+                                begin
+                                    perm_wr_en   <= 1'b1;
+                                    perm_wr_lane <= 3'd1;
+                                    perm_wr_data <= p1 ^ ((w1_q & w1_mask_q) ^ w1_pad_word_q);
+                                end
                             end else begin
-                                set_wr(3'd1, p1 ^ w1_q);
+                                begin
+                                    perm_wr_en   <= 1'b1;
+                                    perm_wr_lane <= 3'd1;
+                                    perm_wr_data <= p1 ^ w1_q;
+                                end
                             end
                         end else if (w1_pad_q) begin
-                            set_wr(3'd1, p1 ^ PAD_BYTE0);
+                            begin
+                                perm_wr_en   <= 1'b1;
+                                perm_wr_lane <= 3'd1;
+                                perm_wr_data <= p1 ^ PAD_BYTE0;
+                            end
                         end else begin
-                            set_wr(3'd1, p1);
+                            begin
+                                perm_wr_en   <= 1'b1;
+                                perm_wr_lane <= 3'd1;
+                                perm_wr_data <= p1;
+                            end
                         end
                         state <= S_AD_P8_START;
                     end
@@ -546,7 +597,11 @@ module sdmc_aead128_core (
 
                 S_DOMSEP: begin
                     if (perm_ready) begin
-                        set_wr(3'd4, p4 ^ 64'h8000_0000_0000_0000);
+                        begin
+                            perm_wr_en   <= 1'b1;
+                            perm_wr_lane <= 3'd4;
+                            perm_wr_data <= p4 ^ 64'h8000_0000_0000_0000;
+                        end
                         state <= S_DATA_BEGIN;
                     end
                 end
@@ -643,26 +698,50 @@ module sdmc_aead128_core (
                 S_DATA_X0: begin
                     if (perm_ready) begin
                         if (block_pad_only_q) begin
-                            set_wr(3'd0, p0 ^ PAD_BYTE0);
+                            begin
+                                perm_wr_en   <= 1'b1;
+                                perm_wr_lane <= 3'd0;
+                                perm_wr_data <= p0 ^ PAD_BYTE0;
+                            end
                         end else if (w0_has_real_q) begin
                             if (is_decrypt_q) begin
                                 out_w0_q <= (p0 ^ w0_q) & w0_mask_q;
                                 if (w0_pad_q) begin
-                                    set_wr(3'd0, (p0 & ~w0_mask_q) ^
-                                                 ((w0_q & w0_mask_q) ^ w0_pad_word_q));
+                                    begin
+                                        perm_wr_en   <= 1'b1;
+                                        perm_wr_lane <= 3'd0;
+                                        perm_wr_data <= (p0 & ~w0_mask_q) ^
+                                                 ((w0_q & w0_mask_q) ^ w0_pad_word_q);
+                                    end
                                 end else begin
-                                    set_wr(3'd0, w0_q);
+                                    begin
+                                        perm_wr_en   <= 1'b1;
+                                        perm_wr_lane <= 3'd0;
+                                        perm_wr_data <= w0_q;
+                                    end
                                 end
                             end else begin
                                 out_w0_q <= p0 ^ w0_q;
                                 if (w0_pad_q) begin
-                                    set_wr(3'd0, p0 ^ ((w0_q & w0_mask_q) ^ w0_pad_word_q));
+                                    begin
+                                        perm_wr_en   <= 1'b1;
+                                        perm_wr_lane <= 3'd0;
+                                        perm_wr_data <= p0 ^ ((w0_q & w0_mask_q) ^ w0_pad_word_q);
+                                    end
                                 end else begin
-                                    set_wr(3'd0, p0 ^ w0_q);
+                                    begin
+                                        perm_wr_en   <= 1'b1;
+                                        perm_wr_lane <= 3'd0;
+                                        perm_wr_data <= p0 ^ w0_q;
+                                    end
                                 end
                             end
                         end else begin
-                            set_wr(3'd0, p0);
+                            begin
+                                perm_wr_en   <= 1'b1;
+                                perm_wr_lane <= 3'd0;
+                                perm_wr_data <= p0;
+                            end
                         end
                         state <= S_DATA_X1;
                     end
@@ -674,23 +753,47 @@ module sdmc_aead128_core (
                             if (is_decrypt_q) begin
                                 out_w1_q <= (p1 ^ w1_q) & w1_mask_q;
                                 if (w1_pad_q) begin
-                                    set_wr(3'd1, (p1 & ~w1_mask_q) ^
-                                                 ((w1_q & w1_mask_q) ^ w1_pad_word_q));
+                                    begin
+                                        perm_wr_en   <= 1'b1;
+                                        perm_wr_lane <= 3'd1;
+                                        perm_wr_data <= (p1 & ~w1_mask_q) ^
+                                                 ((w1_q & w1_mask_q) ^ w1_pad_word_q);
+                                    end
                                 end else begin
-                                    set_wr(3'd1, w1_q);
+                                    begin
+                                        perm_wr_en   <= 1'b1;
+                                        perm_wr_lane <= 3'd1;
+                                        perm_wr_data <= w1_q;
+                                    end
                                 end
                             end else begin
                                 out_w1_q <= p1 ^ w1_q;
                                 if (w1_pad_q) begin
-                                    set_wr(3'd1, p1 ^ ((w1_q & w1_mask_q) ^ w1_pad_word_q));
+                                    begin
+                                        perm_wr_en   <= 1'b1;
+                                        perm_wr_lane <= 3'd1;
+                                        perm_wr_data <= p1 ^ ((w1_q & w1_mask_q) ^ w1_pad_word_q);
+                                    end
                                 end else begin
-                                    set_wr(3'd1, p1 ^ w1_q);
+                                    begin
+                                        perm_wr_en   <= 1'b1;
+                                        perm_wr_lane <= 3'd1;
+                                        perm_wr_data <= p1 ^ w1_q;
+                                    end
                                 end
                             end
                         end else if (w1_pad_q) begin
-                            set_wr(3'd1, p1 ^ PAD_BYTE0);
+                            begin
+                                perm_wr_en   <= 1'b1;
+                                perm_wr_lane <= 3'd1;
+                                perm_wr_data <= p1 ^ PAD_BYTE0;
+                            end
                         end else begin
-                            set_wr(3'd1, p1);
+                            begin
+                                perm_wr_en   <= 1'b1;
+                                perm_wr_lane <= 3'd1;
+                                perm_wr_data <= p1;
+                            end
                         end
                         state <= S_DATA_EMIT_W0;
                     end
@@ -744,14 +847,22 @@ module sdmc_aead128_core (
 
                 S_FINAL_X2: begin
                     if (perm_ready) begin
-                        set_wr(3'd2, p2 ^ key0_q);
+                        begin
+                            perm_wr_en   <= 1'b1;
+                            perm_wr_lane <= 3'd2;
+                            perm_wr_data <= p2 ^ key0_q;
+                        end
                         state <= S_FINAL_X3;
                     end
                 end
 
                 S_FINAL_X3: begin
                     if (perm_ready) begin
-                        set_wr(3'd3, p3 ^ key1_q);
+                        begin
+                            perm_wr_en   <= 1'b1;
+                            perm_wr_lane <= 3'd3;
+                            perm_wr_data <= p3 ^ key1_q;
+                        end
                         state <= S_FINAL_START;
                     end
                 end

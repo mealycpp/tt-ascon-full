@@ -26,26 +26,17 @@ module ascon_permutation (
     output reg          done
 );
 
+
     function [7:0] round_constant;
         input [3:0] r;
         begin
-            case (r)
-                4'd0:  round_constant = 8'hf0;
-                4'd1:  round_constant = 8'he1;
-                4'd2:  round_constant = 8'hd2;
-                4'd3:  round_constant = 8'hc3;
-                4'd4:  round_constant = 8'hb4;
-                4'd5:  round_constant = 8'ha5;
-                4'd6:  round_constant = 8'h96;
-                4'd7:  round_constant = 8'h87;
-                4'd8:  round_constant = 8'h78;
-                4'd9:  round_constant = 8'h69;
-                4'd10: round_constant = 8'h5a;
-                4'd11: round_constant = 8'h4b;
-                default: round_constant = 8'h00;
-            endcase
+            // ASCON round constants:
+            // r=0..11 => f0,e1,d2,c3,b4,a5,96,87,78,69,5a,4b
+            // Avoid case-table inference so Yosys does not create proc_rom.
+            round_constant = {4'hf - r, r};
         end
     endfunction
+
 
     function [3:0] round_start_index;
         input [3:0] r;

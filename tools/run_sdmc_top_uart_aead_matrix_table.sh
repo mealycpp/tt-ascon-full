@@ -1,4 +1,18 @@
+
+UART_RX_SRC=$(grep -RIl --include='*.v' 'module[[:space:]]\+uart_rx' src | head -n 1)
+UART_TX_SRC=$(grep -RIl --include='*.v' 'module[[:space:]]\+uart_tx' src | head -n 1)
+
+if [ -z "$UART_RX_SRC" ] || [ -z "$UART_TX_SRC" ]; then
+  echo "FAIL missing uart_rx/uart_tx source file" >&2
+  exit 1
+fi
+
 #!/usr/bin/env bash
+UART_RX=$(grep -RIl --include='*.v' 'module[[:space:]]\+uart_rx' src | head -n 1)
+UART_TX=$(grep -RIl --include='*.v' 'module[[:space:]]\+uart_tx' src | head -n 1)
+test -n "$UART_RX" || { echo "FAIL missing uart_rx RTL"; exit 1; }
+test -n "$UART_TX" || { echo "FAIL missing uart_tx RTL"; exit 1; }
+
 set -u -o pipefail
 
 GREEN="\033[32m"
@@ -17,6 +31,9 @@ python3 tools/sdmc_generate_top_uart_aead_matrix.py
 PASS_COUNT=0
 FAIL_COUNT=0
 
+
+python3 tools/patch_top_uart_aead_single_uart.py
+
 while read -r name; do
   [ -n "$name" ] || continue
 
@@ -34,6 +51,8 @@ while read -r name; do
     src/uart_tx.v \
     src/sdmc/sdmc_aead_uart_frontend.v \
     src/sdmc/sdmc_aead128_core.v \
+    src/sdmc/sdmc_xof_family_core.v \
+    src/sdmc/sdmc_xof_chain_family_core.v \
     src/sdmc/sdmc_ascon_perm_unit64.v \
     src/sdmc/sdmc_crypto_helpers.v \
     src/project_sdmc_uart_top.v \
