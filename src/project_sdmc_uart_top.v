@@ -95,6 +95,12 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire                     aead_error;
     wire                     aead_auth_ok;
 
+    wire [`SDMC_TOKEN_W-1:0] xof_out_token;
+    wire                     xof_out_push;
+    wire                     xof_busy;
+    wire                     xof_done;
+    wire                     xof_error;
+
     // One physical ASCON permutation shared by AEAD and HASH/XOF/CXOF-chain routines.
     wire                     aead_perm_wr_en;
     wire [2:0]               aead_perm_wr_lane;
@@ -146,17 +152,56 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire [63:0]              shared_perm_x3;
     wire [63:0]              shared_perm_x4;
 
-    wire                     mode_hash = (front_mode == 4'd1);
-    wire                     mode_xof  = mode_hash ||
-                                         (front_mode == 4'd2) || (front_mode == 4'd3) ||
-                                         (front_mode == 4'd4) || (front_mode == 4'd7);
-    wire                     mode_aead = (front_mode == 4'd5) || (front_mode == 4'd6);
+    wire                     mode_hash_now = (front_mode == 4'd1);
+    wire                     mode_xof_now  = mode_hash_now ||
+                                             (front_mode == 4'd2) || (front_mode == 4'd3) ||
+                                             (front_mode == 4'd4) || (front_mode == 4'd7);
+    wire                     mode_aead_now = (front_mode == 4'd5) || (front_mode == 4'd6);
+    wire                     mode_cxof_now = (front_mode == 4'd3) || (front_mode == 4'd7);
     wire                     core_start = aead_start;
-    // Direct shared-permutation arbitration.
-    // AEAD is given priority when front_mode selects AEAD.
-    // This restores the same ready/start/write timing used by the passing thin AEAD tests.
-    wire shared_sel_aead = mode_aead;
-    wire shared_sel_xof  = (!mode_aead) && mode_xof;
+
+    // Lock operation selection at command start.
+    // This prevents live UART/front_mode decode from driving the shared
+    // permutation muxes throughout the operation.
+    reg op_aead_q;
+    reg op_xof_q;
+    reg op_hash_q;
+    reg op_cxof_q;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            op_aead_q <= 1'b0;
+            op_xof_q  <= 1'b0;
+            op_hash_q <= 1'b0;
+            op_cxof_q <= 1'b0;
+        end else if (clear) begin
+            op_aead_q <= 1'b0;
+            op_xof_q  <= 1'b0;
+            op_hash_q <= 1'b0;
+            op_cxof_q <= 1'b0;
+        end else if (aead_start) begin
+            op_aead_q <= mode_aead_now;
+            op_xof_q  <= mode_xof_now;
+            op_hash_q <= mode_hash_now;
+            op_cxof_q <= mode_cxof_now;
+        end else if (aead_done || xof_done || aead_error || xof_error) begin
+            op_aead_q <= 1'b0;
+            op_xof_q  <= 1'b0;
+            op_hash_q <= 1'b0;
+            op_cxof_q <= 1'b0;
+        end
+    end
+
+    wire active_aead_sel = op_aead_q || (core_start && mode_aead_now);
+    wire active_xof_sel  = (!active_aead_sel) &&
+                           (op_xof_q || (core_start && mode_xof_now));
+    wire op_hash_active  = op_hash_q || (core_start && mode_hash_now);
+    wire op_cxof_active  = op_cxof_q || (core_start && mode_cxof_now);
+
+    // Direct shared-permutation arbitration with locked operation selection.
+    // AEAD still has priority when AEAD is the active operation.
+    wire shared_sel_aead = active_aead_sel;
+    wire shared_sel_xof  = active_xof_sel;
 
     assign shared_perm_wr_en =
         shared_sel_aead ? aead_perm_wr_en :
@@ -232,13 +277,9 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         .x4            (shared_perm_x4)
     );
 
-    wire [`SDMC_TOKEN_W-1:0] xof_out_token;
-    wire                     xof_out_push;
-    wire                     xof_busy;
-    wire                     xof_done;
-    wire                     xof_error;
-
-    assign aead_in_pop = mode_aead ? aead_core_in_pop : xof_in_pop;
+    assign aead_in_pop =
+        active_aead_sel ? aead_core_in_pop :
+        active_xof_sel  ? xof_in_pop       : 1'b0;
 
     wire [`SDMC_TOKEN_W-1:0] aead_out_token =
         xof_out_push ? xof_out_token : aead_core_out_token;
@@ -250,7 +291,7 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         .rst_n      (rst_n),
         .clear      (clear),
 
-        .start      (core_start & mode_aead),
+        .start      (core_start & mode_aead_now),
         .is_decrypt (aead_is_decrypt),
         .ad_len     (aead_ad_len),
         .data_len   (aead_data_len),
@@ -288,13 +329,13 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         .rst_n       (rst_n),
         .clear       (clear),
 
-        .start       (core_start & mode_xof),
-        .use_hash    (mode_hash),
-        .use_cxof    ((front_mode == 4'd3) || (front_mode == 4'd7)),
-        .chain_count (mode_hash ? 16'd1 : xof_chain_count),
+        .start       (core_start & mode_xof_now),
+        .use_hash    (op_hash_active),
+        .use_cxof    (op_cxof_active),
+        .chain_count (op_hash_active ? 16'd1 : xof_chain_count),
         .msg_len     (aead_data_len),
-        .cs_len      (mode_hash ? 16'd0 : xof_cs_len),
-        .out_len     (mode_hash ? 16'd32 : xof_out_len),
+        .cs_len      (op_hash_active ? 16'd0 : xof_cs_len),
+        .out_len     (op_hash_active ? 16'd32 : xof_out_len),
 
         .in_token    (aead_in_token),
         .in_empty    (aead_in_empty),
