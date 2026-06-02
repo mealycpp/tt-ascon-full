@@ -47,6 +47,8 @@ module tt_um_mealycpp_ascon_sdmc_uart (
     wire [15:0]              xof_out_len;
     wire [15:0]              xof_chain_count;
     wire [15:0]              xof_cs_len;
+    wire                    error_any_q;
+    wire                    done_any_q;
     wire [`SDMC_TOKEN_W-1:0] aead_in_token;
     wire                     aead_in_empty;
     wire                     aead_in_pop;
@@ -184,6 +186,7 @@ module tt_um_mealycpp_ascon_sdmc_uart (
             op_xof_q  <= mode_xof_now;
             op_hash_q <= mode_hash_now;
             op_cxof_q <= mode_cxof_now;
+
         end else if (done_any_q || error_any_q) begin
             op_aead_q <= 1'b0;
             op_xof_q  <= 1'b0;
@@ -582,8 +585,8 @@ module tt_um_mealycpp_ascon_sdmc_uart (
         end
     end
 
-    wire error_any_q = front_error_q | aead_error_q | xof_error_q;
-    wire done_any_q  = aead_done_q | xof_done_q;
+    assign error_any_q = front_error_q | aead_error_q | xof_error_q;
+    assign done_any_q  = aead_done_q | xof_done_q;
     wire busy_any_q  = front_busy_q | aead_busy_q | xof_busy_q;
 
     reg error_sticky;
