@@ -1,309 +1,201 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import re
+import shutil
 
 ROOT = Path(".")
-SRC_MANIFEST = ROOT / "test/sdmc_chain_vector_matrix/manifest.txt"
-SRC_DIR = ROOT / "test/sdmc_chain_vector_matrix"
-OUTDIR = ROOT / "test/sdmc_top_uart_chain_boundary"
-OUTDIR.mkdir(parents=True, exist_ok=True)
+CORE_DIR = ROOT / "test/sdmc_chain_vector_matrix"
+TEMPLATE_DIR = ROOT / "test/sdmc_top_uart_xof_cxof_kat_massive"
+OUT_DIR = ROOT / "test/sdmc_top_uart_chain_boundary"
 
-MSG_SET = {"empty", "m1", "m8", "m16", "m17", "m32"}
-CHAIN_SET = {"1", "2", "5", "16"}
-OUT_SET = {"32"}
+WANT = [
+    "sdmc_xof_chain_empty_c1_out32",
+    "sdmc_xof_chain_empty_c2_out32",
+    "sdmc_xof_chain_empty_c5_out32",
+    "sdmc_xof_chain_empty_c16_out32",
+    "sdmc_xof_chain_m16_c1_out32",
+    "sdmc_xof_chain_m16_c2_out32",
+    "sdmc_xof_chain_m16_c5_out32",
+    "sdmc_xof_chain_m16_c16_out32",
+    "sdmc_xof_chain_m17_c1_out32",
+    "sdmc_xof_chain_m17_c5_out32",
+    "sdmc_xof_chain_m32_c1_out32",
+    "sdmc_xof_chain_m32_c5_out32",
+    "sdmc_cxof_chain_z8_empty_c1_out32",
+    "sdmc_cxof_chain_z8_empty_c2_out32",
+    "sdmc_cxof_chain_z8_empty_c5_out32",
+    "sdmc_cxof_chain_z8_empty_c16_out32",
+    "sdmc_cxof_chain_z8_m16_c1_out32",
+    "sdmc_cxof_chain_z8_m16_c2_out32",
+    "sdmc_cxof_chain_z8_m16_c5_out32",
+    "sdmc_cxof_chain_z8_m16_c16_out32",
+    "sdmc_cxof_chain_z8_m17_c1_out32",
+    "sdmc_cxof_chain_z8_m17_c5_out32",
+    "sdmc_cxof_chain_z8_m32_c1_out32",
+    "sdmc_cxof_chain_z8_m32_c5_out32",
+]
 
-def wanted(name):
-    mx = re.fullmatch(r"sdmc_xof_chain_(empty|m\d+)_c(\d+)_out(\d+)", name)
-    if mx:
-        return mx.group(1) in MSG_SET and mx.group(2) in CHAIN_SET and mx.group(3) in OUT_SET
+def pick_template(cxof: bool) -> Path:
+    pattern = "tb_cxof*.v" if cxof else "tb_xof*.v"
+    candidates = sorted(TEMPLATE_DIR.glob(pattern))
+    for p in candidates:
+        txt = p.read_text()
+        if "uart_send_byte" in txt and "CHAIN_COUNT" in txt:
+            return p
+    raise SystemExit(f"FAIL: no usable template found in {TEMPLATE_DIR} for {'CXOF' if cxof else 'XOF'}")
 
-    mc = re.fullmatch(r"sdmc_cxof_chain_z0_(empty|m\d+)_c(\d+)_out(\d+)", name)
-    if mc:
-        return mc.group(1) in MSG_SET and mc.group(2) in CHAIN_SET and mc.group(3) in OUT_SET
+def parse_core_tb(name: str):
+    core_tb = CORE_DIR / name / f"tb_{name}.v"
+    if not core_tb.exists():
+        raise SystemExit(f"FAIL: missing core TB: {core_tb}")
 
-    return False
+    txt = core_tb.read_text()
 
-def parse_int_param(text, name):
-    m = re.search(rf"\.{name}\s*\(\s*16'd(\d+)\s*\)", text)
+    m = re.search(r"got\s*!==\s*256'h([0-9a-fA-F]+)", txt)
     if not m:
-        raise ValueError(f"missing {name}")
-    return int(m.group(1))
+        raise SystemExit(f"FAIL: could not parse expected digest from {core_tb}")
 
-def parse_bool_param(text, name):
-    m = re.search(rf"\.{name}\s*\(\s*1'b([01])\s*\)", text)
-    if not m:
-        raise ValueError(f"missing {name}")
-    return int(m.group(1)) == 1
+    exp_hex = m.group(1).lower()
+    exp_bytes = list(reversed([exp_hex[i:i+2] for i in range(0, len(exp_hex), 2)]))
 
-def parse_expected(text):
-    m = re.search(r"got\s*!==\s*256'h([0-9a-fA-F]+)", text)
-    if not m:
-        raise ValueError("missing expected 256'h digest")
-    return m.group(1).lower()
-
-def word_to_bytes_le(hexword, count):
-    x = int(hexword, 16)
-    return [(x >> (8*i)) & 0xff for i in range(count)]
-
-def parse_tokens(text):
     msg = []
     cs = []
-    pat = re.compile(
-        r"token_mem\[\d+\]\s*=\s*\{\s*[^,]+,\s*`(SDMC_TOK_MSG|SDMC_TOK_CS)\s*,\s*4'd(\d+)\s*,\s*64'h([0-9a-fA-F]+)\s*\}\s*;"
+
+    tok_re = re.compile(
+        r"token_mem\[\d+\]\s*=\s*\{\s*1'b[01]\s*,\s*`SDMC_TOK_(MSG|CS)\s*,\s*4'd(\d+)\s*,\s*64'h([0-9a-fA-F]+)\s*\}\s*;"
     )
-    for kind, count_s, word in pat.findall(text):
-        data = word_to_bytes_le(word, int(count_s))
-        if kind == "SDMC_TOK_MSG":
-            msg.extend(data)
-        elif kind == "SDMC_TOK_CS":
-            cs.extend(data)
-    return msg, cs
 
-def verilog_array_init(arr_name, data):
-    if not data:
-        return ""
-    return "\n".join(f"        {arr_name}[{i}] = 8'h{b:02x};" for i, b in enumerate(data))
+    for tm in tok_re.finditer(txt):
+        kind = tm.group(1)
+        count = int(tm.group(2))
+        word_hex = tm.group(3).zfill(16).lower()
 
-def verilog_exp_init(exp_hex):
-    # Core vector compares little-endian byte lanes packed into 256'h.
-    # UART receives byte stream in lane order, so reverse printed hex bytes.
-    bs = bytes.fromhex(exp_hex)[::-1]
-    return "\n".join(f"        exp_md[{i}] = 8'h{b:02x};" for i, b in enumerate(bs))
+        # token data is consumed little-endian: tok_data[7:0], [15:8], ...
+        be = [word_hex[i:i+2] for i in range(0, 16, 2)]
+        le = list(reversed(be))[:count]
 
-def gen_tb(case):
-    src = SRC_DIR / case / f"tb_{case}.v"
-    text = src.read_text()
+        if kind == "MSG":
+            msg.extend(le)
+        elif kind == "CS":
+            cs.extend(le)
 
-    use_cxof = parse_bool_param(text, "use_cxof")
-    chain_count = parse_int_param(text, "chain_count")
-    msg_len = parse_int_param(text, "msg_len")
-    cs_len = parse_int_param(text, "cs_len")
-    out_len = parse_int_param(text, "out_len")
-    exp_hex = parse_expected(text)
-    msg, cs = parse_tokens(text)
+    cm = re.search(r"_c(\d+)_out(\d+)$", name)
+    if not cm:
+        raise SystemExit(f"FAIL: could not parse chain/out length from name: {name}")
 
-    if len(msg) != msg_len:
-        raise ValueError(f"{case}: msg parsed={len(msg)} expected={msg_len}")
-    if len(cs) != cs_len:
-        raise ValueError(f"{case}: cs parsed={len(cs)} expected={cs_len}")
-    if out_len != 32:
-        raise ValueError(f"{case}: expected out_len=32, got {out_len}")
+    chain_count = int(cm.group(1))
+    out_len = int(cm.group(2))
+    cxof = name.startswith("sdmc_cxof_")
+    mode = 3 if cxof else 2
 
-    if use_cxof:
-        mode = 7 if chain_count > 1 else 3
-    else:
-        mode = 4 if chain_count > 1 else 2
+    return {
+        "core_tb": core_tb,
+        "cxof": cxof,
+        "mode": mode,
+        "chain_count": chain_count,
+        "out_len": out_len,
+        "msg": msg,
+        "cs": cs,
+        "exp": exp_bytes,
+    }
 
-    tb_name = "tb_top_uart_" + case
-    msg_decl = max(1, len(msg))
-    cs_decl = max(1, len(cs))
+def replace_localparam(txt: str, key: str, value: int) -> str:
+    pat = rf"localparam integer {key}\s*=\s*\d+\s*;"
+    rep = f"localparam integer {key} = {value};"
+    if re.search(pat, txt):
+        return re.sub(pat, rep, txt)
+    raise SystemExit(f"FAIL: template missing localparam {key}")
 
-    return f"""`timescale 1ns/1ps
-`default_nettype none
+def patch_array_decl(txt: str, name: str, depth_expr: str) -> str:
+    pat = rf"reg\s+\[7:0\]\s+{name}\s*\[[^\n;]+\]\s*;"
+    rep = (
+        f"localparam integer {name.upper()}_DEPTH = {depth_expr};\n"
+        f"    reg [7:0] {name} [0:{name.upper()}_DEPTH-1];"
+    )
+    if re.search(pat, txt):
+        return re.sub(pat, rep, txt, count=1)
+    raise SystemExit(f"FAIL: template missing array declaration for {name}")
 
-module {tb_name};
+def emit_assign(arr: str, values):
+    return "\n".join(f"        {arr}[{i}] = 8'h{b};" for i, b in enumerate(values))
 
-    localparam integer CLK_HALF = 5;
-    localparam integer BAUD_DIV = 217;
-    localparam integer BIT_CYCLES = BAUD_DIV;
+def make_tb(name: str):
+    info = parse_core_tb(name)
+    template = pick_template(info["cxof"])
+    txt = template.read_text()
 
-    localparam integer MODE = {mode};
-    localparam integer MSG_LEN = {len(msg)};
-    localparam integer CS_LEN = {len(cs)};
-    localparam integer OUT_LEN = 32;
-    localparam integer CHAIN_COUNT = {chain_count};
+    old_mod = re.search(r"module\s+(\w+)\s*;", txt)
+    if not old_mod:
+        raise SystemExit(f"FAIL: could not parse module name from {template}")
 
-    reg clk;
-    reg rst_n;
-    reg ena;
-    reg [7:0] ui_in;
-    wire [7:0] uo_out;
-    reg [7:0] uio_in;
-    wire [7:0] uio_out;
-    wire [7:0] uio_oe;
+    old_module = old_mod.group(1)
+    old_case = old_module.replace("tb_", "")
 
-    reg [7:0] msg [0:{msg_decl-1}];
-    reg [7:0] cs  [0:{cs_decl-1}];
-    reg [7:0] exp_md [0:31];
-    reg [7:0] got_md [0:31];
+    txt = re.sub(r"module\s+\w+\s*;", f"module tb_{name};", txt, count=1)
+    txt = txt.replace(old_case, name)
 
-    integer i;
-    integer errors;
-    integer md_rx_count;
-    integer timeout_count;
-    reg capture_md;
+    txt = replace_localparam(txt, "MODE", info["mode"])
+    txt = replace_localparam(txt, "MSG_LEN", len(info["msg"]))
+    txt = replace_localparam(txt, "CS_LEN", len(info["cs"]))
+    txt = replace_localparam(txt, "OUT_LEN", info["out_len"])
+    txt = replace_localparam(txt, "CHAIN_COUNT", info["chain_count"])
 
-    tt_um_mealycpp_ascon_sdmc_uart dut (
-        .ui_in(ui_in),
-        .uo_out(uo_out),
-        .uio_in(uio_in),
-        .uio_out(uio_out),
-        .uio_oe(uio_oe),
-        .ena(ena),
-        .clk(clk),
-        .rst_n(rst_n)
-    );
+    # Critical fix: never leave msg/cs/exp_md as [0:0] when length > 1.
+    # Also avoid illegal zero-depth memories when length is 0.
+    txt = patch_array_decl(txt, "msg", "((MSG_LEN > 0) ? MSG_LEN : 1)")
+    txt = patch_array_decl(txt, "cs", "((CS_LEN > 0) ? CS_LEN : 1)")
+    txt = patch_array_decl(txt, "exp_md", "((OUT_LEN > 0) ? OUT_LEN : 1)")
 
-    initial begin
-        clk = 1'b0;
-        forever #CLK_HALF clk = ~clk;
-    end
+    # Remove old generated assignments.
+    txt = re.sub(r"^\s*msg\[\d+\]\s*=\s*8'h[0-9a-fA-F]{2}\s*;\s*$", "", txt, flags=re.M)
+    txt = re.sub(r"^\s*cs\[\d+\]\s*=\s*8'h[0-9a-fA-F]{2}\s*;\s*$", "", txt, flags=re.M)
+    txt = re.sub(r"^\s*exp_md\[\d+\]\s*=\s*8'h[0-9a-fA-F]{2}\s*;\s*$", "", txt, flags=re.M)
 
-    task automatic wait_cycles;
-        input integer n;
-        integer k;
-        begin
-            for (k = 0; k < n; k = k + 1) @(posedge clk);
-        end
-    endtask
+    init = []
+    init.append(f"        // Auto-generated top-UART chain vector: {name}")
+    init.append(f"        // Source core TB: {info['core_tb']}")
+    if info["msg"]:
+        init.append(emit_assign("msg", info["msg"]))
+    if info["cs"]:
+        init.append(emit_assign("cs", info["cs"]))
+    init.append(emit_assign("exp_md", info["exp"]))
+    init_block = "\n".join(init) + "\n\n"
 
-    task automatic uart_send_byte;
-        input [7:0] b;
-        integer bi;
-        begin
-            ui_in[0] = 1'b0;
-            wait_cycles(BIT_CYCLES);
-            for (bi = 0; bi < 8; bi = bi + 1) begin
-                ui_in[0] = b[bi];
-                wait_cycles(BIT_CYCLES);
-            end
-            ui_in[0] = 1'b1;
-            wait_cycles(BIT_CYCLES);
-        end
-    endtask
+    if "        wait_cycles(100);" not in txt:
+        raise SystemExit(f"FAIL: template missing wait_cycles(100) insertion point: {template}")
+    txt = txt.replace("        wait_cycles(100);", init_block + "        wait_cycles(100);", 1)
 
-    task automatic uart_recv_byte;
-        output [7:0] b;
-        integer bi;
-        begin
-            while (uo_out[0] !== 1'b0) @(posedge clk);
-            wait_cycles(BIT_CYCLES + (BIT_CYCLES/2));
-            for (bi = 0; bi < 8; bi = bi + 1) begin
-                b[bi] = uo_out[0];
-                wait_cycles(BIT_CYCLES);
-            end
-            wait_cycles(BIT_CYCLES/2);
-        end
-    endtask
+    # Important: replace CXOF_TOP first, otherwise CXOF_TOP becomes CCHAIN_TOP.
+    txt = txt.replace("CXOF_TOP", "CHAIN_TOP")
+    txt = txt.replace("XOF_TOP", "CHAIN_TOP")
 
-    task automatic uart_rx_monitor;
-        reg [7:0] b;
-        begin
-            forever begin
-                uart_recv_byte(b);
-                if (capture_md && md_rx_count < OUT_LEN) begin
-                    got_md[md_rx_count] = b;
-                    md_rx_count = md_rx_count + 1;
-                end
-            end
-        end
-    endtask
+    case_dir = OUT_DIR / name
+    case_dir.mkdir(parents=True, exist_ok=True)
+    out_tb = case_dir / f"tb_{name}.v"
+    out_tb.write_text(txt)
 
-    task automatic send_cmd;
-        begin
-            uart_send_byte(8'hA5);
-            uart_send_byte(MODE[7:0]);
-            uart_send_byte(8'h00);
-            uart_send_byte(8'h00);
-            uart_send_byte(8'h00);
-            uart_send_byte(MSG_LEN[7:0]);
-            uart_send_byte(MSG_LEN[15:8]);
-            uart_send_byte(OUT_LEN[7:0]);
-            uart_send_byte(OUT_LEN[15:8]);
-            uart_send_byte(CHAIN_COUNT[7:0]);
-            uart_send_byte(CHAIN_COUNT[15:8]);
-            uart_send_byte(CS_LEN[7:0]);
-            uart_send_byte(CS_LEN[15:8]);
-            uart_send_byte(8'h5A);
-        end
-    endtask
+    return out_tb
 
-    initial begin
-        errors = 0;
-        md_rx_count = 0;
-        timeout_count = 0;
-        capture_md = 1'b0;
-        ui_in = 8'hff;
-        uio_in = 8'h00;
-        ena = 1'b1;
-        rst_n = 1'b0;
+def main():
+    if not CORE_DIR.exists():
+        raise SystemExit(f"FAIL: missing core chain directory: {CORE_DIR}")
+    if not TEMPLATE_DIR.exists():
+        raise SystemExit(f"FAIL: missing top-UART XOF/CXOF template directory: {TEMPLATE_DIR}")
 
-{verilog_array_init("msg", msg)}
-{verilog_array_init("cs", cs)}
-{verilog_exp_init(exp_hex)}
+    if OUT_DIR.exists():
+        shutil.rmtree(OUT_DIR)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-        wait_cycles(20);
-        rst_n = 1'b1;
-        wait_cycles(100);
+    made = []
+    for name in WANT:
+        tb = make_tb(name)
+        made.append(name)
 
-        fork
-            uart_rx_monitor();
-        join_none
+    manifest = OUT_DIR / "manifest.txt"
+    manifest.write_text("\n".join(made) + "\n")
 
-        capture_md = 1'b1;
+    print(f"Generated {len(made)} top-UART XOF/CXOF chain tests")
+    print(f"Manifest: {manifest}")
 
-        $display("DBG CHAIN_TOP start name={case} mode=%0d msg=%0d cs=%0d chain=%0d out=%0d",
-                 MODE, MSG_LEN, CS_LEN, CHAIN_COUNT, OUT_LEN);
-
-        send_cmd();
-
-        for (i = 0; i < CS_LEN; i = i + 1) uart_send_byte(cs[i]);
-        for (i = 0; i < MSG_LEN; i = i + 1) uart_send_byte(msg[i]);
-
-        while (md_rx_count < OUT_LEN && timeout_count < 6000000) begin
-            timeout_count = timeout_count + 1;
-            @(posedge clk);
-        end
-
-        capture_md = 1'b0;
-
-        if (md_rx_count != OUT_LEN) begin
-            $display("FAIL CHAIN_TOP_TIMEOUT name={case} rx=%0d expected=%0d", md_rx_count, OUT_LEN);
-            errors = errors + 1;
-        end
-
-        for (i = 0; i < OUT_LEN; i = i + 1) begin
-            if (got_md[i] !== exp_md[i]) begin
-                if (errors == 0) begin
-                    $display("FAIL CHAIN_TOP_FIRST_MISMATCH name={case} idx=%0d got=%02x exp=%02x",
-                             i, got_md[i], exp_md[i]);
-                end
-                errors = errors + 1;
-            end
-        end
-
-        $write("GOT_CHAIN_TOP name={case} got=");
-        for (i = 0; i < OUT_LEN; i = i + 1) $write("%02x", got_md[i]);
-        $display("");
-
-        $write("EXP_CHAIN_TOP name={case} exp=");
-        for (i = 0; i < OUT_LEN; i = i + 1) $write("%02x", exp_md[i]);
-        $display("");
-
-        if (errors == 0)
-            $display("PASS CHAIN_TOP name={case} mode=%0d msg=%0d cs=%0d chain=%0d out=%0d",
-                     MODE, MSG_LEN, CS_LEN, CHAIN_COUNT, OUT_LEN);
-        else
-            $display("FAIL CHAIN_TOP name={case} errors=%0d", errors);
-
-        $finish;
-    end
-
-endmodule
-
-`default_nettype wire
-"""
-
-cases = [x.strip() for x in SRC_MANIFEST.read_text().splitlines() if x.strip()]
-selected = [c for c in cases if wanted(c)]
-
-manifest = []
-for case in selected:
-    tb = gen_tb(case)
-    name = "top_uart_" + case
-    (OUTDIR / f"tb_{name}.v").write_text(tb)
-    manifest.append(name)
-
-(OUTDIR / "manifest.txt").write_text("\n".join(manifest) + "\n")
-print(f"Generated {len(manifest)} derived chain top-UART boundary tests")
-print(f"Manifest: {OUTDIR/'manifest.txt'}")
+if __name__ == "__main__":
+    main()
