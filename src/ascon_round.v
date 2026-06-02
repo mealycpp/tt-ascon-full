@@ -1,12 +1,14 @@
 /*
  * Sequential ASCON round engine.
  *
- * One ASCON round is split into 4 short registered phases:
+ * One ASCON round is split into 3 short registered phases:
  *
- *   PH_A: pC + first S-box XOR layer
- *   PH_T: nonlinear AND terms
- *   PH_S: final S-box XOR layer
+ *   PH_A: pC + first S-box XOR layer, captured in a*_r on start
+ *   PH_S: nonlinear AND terms + final S-box XOR layer
  *   PH_L: linear diffusion and output register
+ *
+ * This removes only one cycle versus the previous 4-phase version:
+ * the old registered PH_T stage is now combinational inside PH_S.
  *
  * No memories.
  * No FIFOs.
@@ -54,17 +56,27 @@ module ascon_round (
     reg [63:0] a3_r;
     reg [63:0] a4_r;
 
-    reg [63:0] t0_r;
-    reg [63:0] t1_r;
-    reg [63:0] t2_r;
-    reg [63:0] t3_r;
-    reg [63:0] t4_r;
-
     reg [63:0] s0_r;
     reg [63:0] s1_r;
     reg [63:0] s2_r;
     reg [63:0] s3_r;
     reg [63:0] s4_r;
+
+    /*
+     * Former PH_T registers are now local combinational wires.
+     * This removes exactly one registered phase and 320 FFs.
+     */
+    wire [63:0] t0_w;
+    wire [63:0] t1_w;
+    wire [63:0] t2_w;
+    wire [63:0] t3_w;
+    wire [63:0] t4_w;
+
+    assign t0_w = (~a0_r) & a1_r;
+    assign t1_w = (~a1_r) & a2_r;
+    assign t2_w = (~a2_r) & a3_r;
+    assign t3_w = (~a3_r) & a4_r;
+    assign t4_w = (~a4_r) & a0_r;
 
     wire [63:0] x0_l;
     wire [63:0] x1_l;
@@ -87,12 +99,11 @@ module ascon_round (
     assign x4_l = s4_r ^ {s4_r[6:0],  s4_r[63:7]}
                        ^ {s4_r[40:0], s4_r[63:41]};
 
-    localparam PH_IDLE = 3'd0;
-    localparam PH_T    = 3'd1;
-    localparam PH_S    = 3'd2;
-    localparam PH_L    = 3'd3;
+    localparam PH_IDLE = 2'd0;
+    localparam PH_S    = 2'd1;
+    localparam PH_L    = 2'd2;
 
-    reg [2:0] phase;
+    reg [1:0] phase;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -103,12 +114,6 @@ module ascon_round (
             a2_r        <= 64'd0;
             a3_r        <= 64'd0;
             a4_r        <= 64'd0;
-
-            t0_r        <= 64'd0;
-            t1_r        <= 64'd0;
-            t2_r        <= 64'd0;
-            t3_r        <= 64'd0;
-            t4_r        <= 64'd0;
 
             s0_r        <= 64'd0;
             s1_r        <= 64'd0;
@@ -135,26 +140,16 @@ module ascon_round (
                         a4_r  <= x4_in ^ x3_in;
 
                         busy  <= 1'b1;
-                        phase <= PH_T;
+                        phase <= PH_S;
                     end
                 end
 
-                PH_T: begin
-                    t0_r  <= (~a0_r) & a1_r;
-                    t1_r  <= (~a1_r) & a2_r;
-                    t2_r  <= (~a2_r) & a3_r;
-                    t3_r  <= (~a3_r) & a4_r;
-                    t4_r  <= (~a4_r) & a0_r;
-
-                    phase <= PH_S;
-                end
-
                 PH_S: begin
-                    s0_r <= (a0_r ^ t1_r) ^ (a4_r ^ t0_r);
-                    s1_r <= (a1_r ^ t2_r) ^ (a0_r ^ t1_r);
-                    s2_r <= ~(a2_r ^ t3_r);
-                    s3_r <= (a3_r ^ t4_r) ^ (a2_r ^ t3_r);
-                    s4_r <= (a4_r ^ t0_r);
+                    s0_r  <= (a0_r ^ t1_w) ^ (a4_r ^ t0_w);
+                    s1_r  <= (a1_r ^ t2_w) ^ (a0_r ^ t1_w);
+                    s2_r  <= ~(a2_r ^ t3_w);
+                    s3_r  <= (a3_r ^ t4_w) ^ (a2_r ^ t3_w);
+                    s4_r  <= (a4_r ^ t0_w);
 
                     phase <= PH_L;
                 end
