@@ -146,9 +146,11 @@ module sdmc_xof_chain_family_core (
     // Synthetic empty token is internal; do not pop the external input stream.
     assign in_pop = (pass0_q && !empty_msg_fire) ? inner_in_pop : 1'b0;
 
-    assign inner_out_full = final_pass ? out_full : 1'b0;
-    assign out_token      = final_pass ? inner_out_token : {`SDMC_TOKEN_W{1'b0}};
-    assign out_push       = final_pass ? inner_out_push  : 1'b0;
+    // Token handshake rule: out_token is valid only when out_push is asserted.
+    // Keep backpressure identical, but avoid a 73-bit invalid-cycle zeroing mux.
+    assign inner_out_full = final_pass && out_full;
+    assign out_token      = inner_out_token;
+    assign out_push       = final_pass && inner_out_push;
 
     sdmc_xof_family_core u_single (
         .clk         (clk),
