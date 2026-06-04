@@ -81,15 +81,6 @@ module sdmc_xof_chain_family_core (
     reg                     empty_msg_pending_q;
     reg [15:0]              cs_tokens_left_q;
 
-    // Timing isolation for CXOF-chain customization-string caching.
-    // This stages the full token, not only the 64-bit payload, so the
-    // {last, kind, count, data} fields remain coherent.
-    reg [`SDMC_TOKEN_W-1:0] cs_stage_token_q;
-    reg [CS_CACHE_AW-1:0]   cs_stage_slot_q;
-    reg                     cs_stage_valid_q;
-    reg                     inner_done_hold_q;
-    reg                     inner_error_hold_q;
-
     reg inner_start;
 
     wire inner_done;
@@ -219,11 +210,6 @@ module sdmc_xof_chain_family_core (
             cs_cache1_q        <= {`SDMC_TOKEN_W{1'b0}};
             cs_cache2_q        <= {`SDMC_TOKEN_W{1'b0}};
             cs_cache3_q        <= {`SDMC_TOKEN_W{1'b0}};
-            cs_stage_token_q   <= {`SDMC_TOKEN_W{1'b0}};
-            cs_stage_slot_q    <= {CS_CACHE_AW{1'b0}};
-            cs_stage_valid_q   <= 1'b0;
-            inner_done_hold_q  <= 1'b0;
-            inner_error_hold_q <= 1'b0;
             inner_start    <= 1'b0;
             busy        <= 1'b0;
             done        <= 1'b0;
@@ -248,11 +234,6 @@ module sdmc_xof_chain_family_core (
             cs_cache1_q        <= {`SDMC_TOKEN_W{1'b0}};
             cs_cache2_q        <= {`SDMC_TOKEN_W{1'b0}};
             cs_cache3_q        <= {`SDMC_TOKEN_W{1'b0}};
-            cs_stage_token_q   <= {`SDMC_TOKEN_W{1'b0}};
-            cs_stage_slot_q    <= {CS_CACHE_AW{1'b0}};
-            cs_stage_valid_q   <= 1'b0;
-            inner_done_hold_q  <= 1'b0;
-            inner_error_hold_q <= 1'b0;
             inner_start    <= 1'b0;
             busy        <= 1'b0;
             done        <= 1'b0;
@@ -263,20 +244,6 @@ module sdmc_xof_chain_family_core (
 
             if (empty_msg_fire && inner_in_pop) begin
                 empty_msg_pending_q <= 1'b0;
-            end
-
-            // Drain one staged CS token into the replay cache. This breaks the
-            // long path from live in_token/control decode directly into
-            // cs_cache*_q.
-            if (cs_stage_valid_q) begin
-                case (cs_stage_slot_q)
-                    2'd0: cs_cache0_q <= cs_stage_token_q;
-                    2'd1: cs_cache1_q <= cs_stage_token_q;
-                    2'd2: cs_cache2_q <= cs_stage_token_q;
-                    default: cs_cache3_q <= cs_stage_token_q;
-                endcase
-                cs_cache_count  <= cs_cache_count + {{CS_CACHE_AW{1'b0}}, 1'b1};
-                cs_stage_valid_q <= 1'b0;
             end
 
             if (pass0_q && inner_in_pop && !empty_msg_fire &&
@@ -294,11 +261,15 @@ module sdmc_xof_chain_family_core (
             // do not wait for it to capture the CS token.
             if (pass0_q && !in_empty &&
                 (in_token[`SDMC_TOKEN_KIND_MSB:`SDMC_TOKEN_KIND_LSB] == `SDMC_TOK_CS) &&
-                !cs_cache_hold_q && !cs_stage_valid_q) begin
+                !cs_cache_hold_q) begin
                 if (cs_cache_count < CS_CACHE_DEPTH[CS_CACHE_AW:0]) begin
-                    cs_stage_token_q <= in_token;
-                    cs_stage_slot_q  <= cs_cache_count[CS_CACHE_AW-1:0];
-                    cs_stage_valid_q <= 1'b1;
+                    case (cs_cache_count[CS_CACHE_AW-1:0])
+                        2'd0: cs_cache0_q <= in_token;
+                        2'd1: cs_cache1_q <= in_token;
+                        2'd2: cs_cache2_q <= in_token;
+                        default: cs_cache3_q <= in_token;
+                    endcase
+                    cs_cache_count <= cs_cache_count + {{CS_CACHE_AW{1'b0}}, 1'b1};
                 end else begin
                     cs_cache_overflow <= 1'b1;
                 end
@@ -348,11 +319,6 @@ module sdmc_xof_chain_family_core (
                             cs_replay_idx      <= {CS_CACHE_AW+1{1'b0}};
                             cs_cache_hold_q    <= 1'b0;
                             cs_cache_overflow  <= 1'b0;
-                            cs_stage_token_q   <= {`SDMC_TOKEN_W{1'b0}};
-                            cs_stage_slot_q    <= {CS_CACHE_AW{1'b0}};
-                            cs_stage_valid_q   <= 1'b0;
-                            inner_done_hold_q  <= 1'b0;
-                            inner_error_hold_q <= 1'b0;
                             empty_msg_pending_q <= (msg_len == 16'd0);
                             cs_tokens_left_q     <= expected_cs_tokens_w;
                             state              <= S_START_PASS;
@@ -361,22 +327,13 @@ module sdmc_xof_chain_family_core (
                 end
 
                 S_START_PASS: begin
-                    inner_start        <= 1'b1;
-                    inner_done_hold_q  <= 1'b0;
-                    inner_error_hold_q <= 1'b0;
-                    state              <= S_RUN_PASS;
+                    inner_start <= 1'b1;
+                    state       <= S_RUN_PASS;
                 end
 
                 S_RUN_PASS: begin
-                    if (inner_done && cs_stage_valid_q) begin
-                        // If the inner core finishes in the same cycle that a
-                        // staged CS token still needs to be committed, remember
-                        // completion and transition only after the stage drains.
-                        inner_done_hold_q  <= 1'b1;
-                        inner_error_hold_q <= inner_error;
-                    end else if ((inner_done || inner_done_hold_q) && !cs_stage_valid_q) begin
-                        inner_done_hold_q <= 1'b0;
-                        if (inner_error || inner_error_hold_q || cs_cache_overflow) begin
+                    if (inner_done) begin
+                        if (inner_error || cs_cache_overflow) begin
                             error <= 1'b1;
                             state <= S_ERR;
                         end else if (passes_left == 16'd1) begin
