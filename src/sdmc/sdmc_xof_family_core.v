@@ -77,7 +77,6 @@ module sdmc_xof_family_core (
     reg [1:0]  phase_q;
 
     reg [63:0] x0_q;
-    reg [63:0] iv_q;
     reg [63:0] absorb_q;
 
     reg [3:0]  msg_bytes_q;
@@ -89,6 +88,18 @@ module sdmc_xof_family_core (
     wire [3:0]  tok_bytes = in_token[`SDMC_TOKEN_BYTES_MSB:`SDMC_TOKEN_BYTES_LSB];
     wire [63:0] tok_data  = in_token[`SDMC_TOKEN_DATA_MSB:`SDMC_TOKEN_DATA_LSB];
 
+    wire [63:0] iv_w = use_hash ? `SDMC_HASH256_IV : (use_cxof ? `SDMC_CXOF128_IV : `SDMC_XOF128_IV);
+
+    wire [63:0] padded_absorb =
+        (!tok_last || (tok_bytes == 4'd8)) ? tok_data :
+        (tok_bytes[2:0] == 3'd1) ? ((tok_data & 64'h0000_0000_0000_00FF) ^ 64'h0000_0000_0000_0100) :
+        (tok_bytes[2:0] == 3'd2) ? ((tok_data & 64'h0000_0000_0000_FFFF) ^ 64'h0000_0000_0001_0000) :
+        (tok_bytes[2:0] == 3'd3) ? ((tok_data & 64'h0000_0000_00FF_FFFF) ^ 64'h0000_0000_0100_0000) :
+        (tok_bytes[2:0] == 3'd4) ? ((tok_data & 64'h0000_0000_FFFF_FFFF) ^ 64'h0000_0001_0000_0000) :
+        (tok_bytes[2:0] == 3'd5) ? ((tok_data & 64'h0000_00FF_FFFF_FFFF) ^ 64'h0000_0100_0000_0000) :
+        (tok_bytes[2:0] == 3'd6) ? ((tok_data & 64'h0000_FFFF_FFFF_FFFF) ^ 64'h0001_0000_0000_0000) :
+        (tok_bytes[2:0] == 3'd7) ? ((tok_data & 64'h00FF_FFFF_FFFF_FFFF) ^ 64'h0100_0000_0000_0000) :
+                                    64'h0000_0000_0000_0001;
     assign perm_rounds_q = `SDMC_ASCON_P12;
 
     wire _unused = &{perm_busy, p1, p2, p3, p4, chain_count, 1'b0};
@@ -103,7 +114,6 @@ module sdmc_xof_family_core (
             phase_q      <= PH_MSG;
 
             x0_q         <= 64'd0;
-            iv_q         <= 64'd0;
             absorb_q     <= 64'd0;
 
             msg_bytes_q  <= 4'd0;
@@ -131,7 +141,6 @@ module sdmc_xof_family_core (
             phase_q      <= PH_MSG;
 
             x0_q         <= 64'd0;
-            iv_q         <= 64'd0;
             absorb_q     <= 64'd0;
 
             msg_bytes_q  <= 4'd0;
@@ -171,8 +180,6 @@ module sdmc_xof_family_core (
                         out_left_q  <= out_len;
                         phase_q     <= PH_MSG;
                         empty_pad_q <= 1'b0;
-                        iv_q        <= use_hash ? `SDMC_HASH256_IV :
-                                       (use_cxof ? `SDMC_CXOF128_IV : `SDMC_XOF128_IV);
                         state       <= S_LOAD_X0;
                     end
                 end
@@ -181,7 +188,7 @@ module sdmc_xof_family_core (
                     if (perm_ready) begin
                         perm_wr_en   <= 1'b1;
                         perm_wr_lane <= 3'd0;
-                        perm_wr_data <= iv_q;
+                        perm_wr_data <= iv_w;
                         state        <= S_LOAD_X1;
                     end
                 end
@@ -260,20 +267,7 @@ module sdmc_xof_family_core (
                             msg_bytes_q <= tok_bytes;
                             msg_last_q  <= tok_last;
 
-                            if (tok_last && tok_bytes != 4'd8) begin
-                                case (tok_bytes[2:0])
-                                    3'd1: absorb_q <= (tok_data & 64'h0000_0000_0000_00FF) ^ 64'h0000_0000_0000_0100;
-                                    3'd2: absorb_q <= (tok_data & 64'h0000_0000_0000_FFFF) ^ 64'h0000_0000_0001_0000;
-                                    3'd3: absorb_q <= (tok_data & 64'h0000_0000_00FF_FFFF) ^ 64'h0000_0000_0100_0000;
-                                    3'd4: absorb_q <= (tok_data & 64'h0000_0000_FFFF_FFFF) ^ 64'h0000_0001_0000_0000;
-                                    3'd5: absorb_q <= (tok_data & 64'h0000_00FF_FFFF_FFFF) ^ 64'h0000_0100_0000_0000;
-                                    3'd6: absorb_q <= (tok_data & 64'h0000_FFFF_FFFF_FFFF) ^ 64'h0001_0000_0000_0000;
-                                    3'd7: absorb_q <= (tok_data & 64'h00FF_FFFF_FFFF_FFFF) ^ 64'h0100_0000_0000_0000;
-                                    default: absorb_q <= 64'h0000_0000_0000_0001;
-                                endcase
-                            end else begin
-                                absorb_q <= tok_data;
-                            end
+                            absorb_q <= padded_absorb;
 
                             state <= S_ABS_RD;
                         end
@@ -291,20 +285,7 @@ module sdmc_xof_family_core (
                             msg_bytes_q <= tok_bytes;
                             msg_last_q  <= tok_last;
 
-                            if (tok_last && tok_bytes != 4'd8) begin
-                                case (tok_bytes[2:0])
-                                    3'd1: absorb_q <= (tok_data & 64'h0000_0000_0000_00FF) ^ 64'h0000_0000_0000_0100;
-                                    3'd2: absorb_q <= (tok_data & 64'h0000_0000_0000_FFFF) ^ 64'h0000_0000_0001_0000;
-                                    3'd3: absorb_q <= (tok_data & 64'h0000_0000_00FF_FFFF) ^ 64'h0000_0000_0100_0000;
-                                    3'd4: absorb_q <= (tok_data & 64'h0000_0000_FFFF_FFFF) ^ 64'h0000_0001_0000_0000;
-                                    3'd5: absorb_q <= (tok_data & 64'h0000_00FF_FFFF_FFFF) ^ 64'h0000_0100_0000_0000;
-                                    3'd6: absorb_q <= (tok_data & 64'h0000_FFFF_FFFF_FFFF) ^ 64'h0001_0000_0000_0000;
-                                    3'd7: absorb_q <= (tok_data & 64'h00FF_FFFF_FFFF_FFFF) ^ 64'h0100_0000_0000_0000;
-                                    default: absorb_q <= 64'h0000_0000_0000_0001;
-                                endcase
-                            end else begin
-                                absorb_q <= tok_data;
-                            end
+                            absorb_q <= padded_absorb;
 
                             state <= S_ABS_RD;
                         end
